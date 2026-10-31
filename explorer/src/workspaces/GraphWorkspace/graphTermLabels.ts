@@ -10,6 +10,8 @@ function normalizeTerm(raw: string): string {
     .replace(/_+/g, "_");
 }
 
+const translatedTerms = new Map<typeof relationCatalogs, Map<string, string>>();
+
 function translateTerm(
   raw: string | null | undefined,
   catalogs: typeof relationCatalogs,
@@ -18,8 +20,21 @@ function translateTerm(
   if (!text) {
     return text;
   }
-  const fallback = getLocale() === "en" ? text : text.replaceAll("_", " ");
-  return lookupCatalog(catalogs, normalizeTerm(text), fallback);
+  const locale = getLocale();
+  let cache = translatedTerms.get(catalogs);
+  if (!cache) {
+    cache = new Map();
+    translatedTerms.set(catalogs, cache);
+  }
+  const cacheKey = `${locale}:${text}`;
+  const cached = cache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const fallback = locale === "en" ? text : text.replaceAll("_", " ");
+  const translated = lookupCatalog(catalogs, normalizeTerm(text), fallback);
+  cache.set(cacheKey, translated);
+  return translated;
 }
 
 export function translateRelationType(raw: string | null | undefined): string {

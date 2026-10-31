@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-import { t } from "../../../i18n";
+import { formatMessage, message, t } from "../../../i18n";
 import type { MessageKey } from "../../../i18n/messages";
 import { buildGraphColorLegend } from "../graphColorLegend";
 import { translateNodeType } from "../graphTermLabels";
@@ -97,14 +97,15 @@ const AVAILABILITY_KEYS: Record<GraphEffectToggle, keyof GraphDiagnosticsSnapsho
 };
 
 function renderAvailabilityText(availability: GraphEffectAvailability) {
+  const reason = formatMessage(availability.reason);
   if (availability.available) {
     if (typeof availability.visibleSegments === "number" && typeof availability.segmentCap === "number") {
-      return `${availability.reason} - ${t("effects.segments", { visible: availability.visibleSegments, cap: availability.segmentCap })}`;
+      return `${reason} - ${t("effects.segments", { visible: availability.visibleSegments, cap: availability.segmentCap })}`;
     }
-    return availability.reason;
+    return reason;
   }
 
-  return availability.detail ? `${availability.reason} - ${availability.detail}` : availability.reason;
+  return availability.detail ? `${reason} - ${formatMessage(availability.detail)}` : reason;
 }
 
 function collectFallbackLegendItems(context: Parameters<NonNullable<GraphPlugin["renderPanel"]>>[0]) {
@@ -121,7 +122,7 @@ function resolveAvailability(
   return availabilityMap?.[AVAILABILITY_KEYS[key]] ?? {
     enabled,
     available: false,
-    reason: t("effects.reason.waitingRuntime"),
+    reason: message("effects.reason.waitingRuntime"),
   };
 }
 
@@ -232,7 +233,7 @@ function renderRegionsAndSignals(
           <div style={signalRowStyle}>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={rowTitleStyle}>{directedPath.ready ? t("effects.pathReady") : t("effects.pathWaiting")}</div>
-              <div style={rowMetaStyle}>{directedPath.reason}</div>
+              <div style={rowMetaStyle}>{formatMessage(directedPath.reason)}</div>
             </div>
             {directedPath.ready ? (
               <div style={signalBadgeStyle}>

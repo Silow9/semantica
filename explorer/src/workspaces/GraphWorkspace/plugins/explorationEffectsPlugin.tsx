@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-import { t } from "../../../i18n";
+import { formatMessage, message, t } from "../../../i18n";
 import type { MessageKey } from "../../../i18n/messages";
 import type {
   GraphDiagnosticsSnapshot,
@@ -58,14 +58,15 @@ const EFFECT_AVAILABILITY_KEYS: Partial<Record<GraphEffectToggle, keyof GraphDia
 };
 
 function renderAvailabilityText(availability: GraphEffectAvailability) {
+  const reason = formatMessage(availability.reason);
   if (availability.available) {
     if (typeof availability.visibleSegments === "number" && typeof availability.segmentCap === "number") {
-      return `${availability.reason} · ${t("effects.segments", { visible: availability.visibleSegments, cap: availability.segmentCap })}`;
+      return `${reason} · ${t("effects.segments", { visible: availability.visibleSegments, cap: availability.segmentCap })}`;
     }
-    return availability.reason;
+    return reason;
   }
 
-  return availability.detail ? `${availability.reason} · ${availability.detail}` : availability.reason;
+  return availability.detail ? `${reason} · ${formatMessage(availability.detail)}` : reason;
 }
 
 function collectLegendItems(context: Parameters<NonNullable<GraphPlugin["renderPanel"]>>[0]) {
@@ -164,7 +165,7 @@ export const explorationEffectsPlugin: GraphPlugin = {
                     : undefined) ?? {
                     enabled: effectsState[row.key],
                     available: false,
-                    reason: t("effects.reason.waitingRuntime"),
+                    reason: message("effects.reason.waitingRuntime"),
                   }
                 }
                 onToggle={() => context.dispatchAction({ type: "toggleEffect", effect: row.key })}
@@ -210,7 +211,7 @@ export const explorationEffectsPlugin: GraphPlugin = {
                   availability?.diagnostics ?? {
                     enabled: effectsState.diagnosticsEnabled,
                     available: false,
-                    reason: t("effects.reason.waitingRuntime"),
+                    reason: message("effects.reason.waitingRuntime"),
                   }
                 }
                 onToggle={() => context.dispatchAction({ type: "toggleEffect", effect: "diagnosticsEnabled" })}

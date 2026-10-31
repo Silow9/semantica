@@ -8,7 +8,7 @@ import {
   outDegreeCentrality,
 } from "graphology-metrics/centrality/degree";
 
-import { t } from "../../i18n";
+import { message, t } from "../../i18n";
 import { graph, type EdgeAttributes, type NodeAttributes } from "../../store/graphStore";
 import { GRAPH_THEME, hashString } from "./graphTheme";
 import type {
@@ -440,7 +440,7 @@ function buildOverviewBackboneSnapshot(
   if (visibleNodeIds.size === 0) {
     return {
       ready: false,
-      reason: "No visible nodes are available for overview backbone selection.",
+      reason: message("analytics.backboneNoVisible"),
       edgeIds: [],
     };
   }
@@ -570,8 +570,8 @@ function buildOverviewBackboneSnapshot(
   return {
     ready: edgeIds.length > 0,
     reason: edgeIds.length > 0
-      ? t("effects.reason.ready")
-      : t("analytics.backboneNone"),
+      ? message("effects.reason.ready")
+      : message("analytics.backboneNone"),
     edgeIds,
   };
 }
@@ -583,7 +583,7 @@ function buildDirectedPathSnapshot(
   if (interactionState.activePath.length < 2) {
     return {
       ready: false,
-      reason: t("analytics.pathTrace"),
+      reason: message("analytics.pathTrace"),
       sourceId: interactionState.selectedNodeId || null,
       targetId: null,
       path: [],
@@ -597,7 +597,7 @@ function buildDirectedPathSnapshot(
   if (!sourceId || !targetId || !graphRef.hasNode(sourceId) || !graphRef.hasNode(targetId)) {
     return {
       ready: false,
-      reason: t("analytics.pathEndpoints"),
+      reason: message("analytics.pathEndpoints"),
       sourceId,
       targetId,
       path: [],
@@ -611,8 +611,8 @@ function buildDirectedPathSnapshot(
     return {
       ready: path.length > 1,
       reason: path.length > 1
-        ? t("effects.reason.ready")
-        : t("analytics.pathNone"),
+        ? message("effects.reason.ready")
+        : message("analytics.pathNone"),
       sourceId,
       targetId,
       path,
@@ -623,7 +623,7 @@ function buildDirectedPathSnapshot(
     console.error("[GraphAnalytics] directed pathfinding failed", error);
     return {
       ready: false,
-      reason: t("analytics.pathFailed"),
+      reason: message("analytics.pathFailed"),
       sourceId,
       targetId,
       path: [],
@@ -661,10 +661,10 @@ export function buildGraphAnalyticsSnapshot(params: {
     communities: {
       ready: communitySummaries.length > 0,
       reason: communitySummaries.length > 0
-        ? t("effects.reason.ready")
+        ? message("effects.reason.ready")
         : base.communitiesByNode.size > 0
-          ? t("analytics.communitiesNone")
-          : t("analytics.communitiesPending"),
+          ? message("analytics.communitiesNone")
+          : message("analytics.communitiesPending"),
       count: base.communityCount,
       modularity: base.modularity,
       summaries: communitySummaries,
@@ -673,16 +673,16 @@ export function buildGraphAnalyticsSnapshot(params: {
       ready: centralitySummaries.length > 0,
       reason: centralitySummaries.length > 0
         ? base.betweennessReady
-          ? t("effects.reason.ready")
-          : t("analytics.centralityBounded")
-        : t("analytics.centralityPending"),
+          ? message("effects.reason.ready")
+          : message("analytics.centralityBounded")
+        : message("analytics.centralityPending"),
       topNodes: centralitySummaries,
     },
     semanticRegions: {
       ready: semanticRegionSummaries.length > 0,
       reason: semanticRegionSummaries.length > 0
-        ? t("effects.reason.ready")
-        : t("analytics.regionsNone"),
+        ? message("effects.reason.ready")
+        : message("analytics.regionsNone"),
       summaries: semanticRegionSummaries,
     },
     overviewBackbone,

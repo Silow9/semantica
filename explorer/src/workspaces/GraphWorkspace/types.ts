@@ -1,3 +1,5 @@
+import type { LocalizedMessage } from "../../i18n";
+
 export type GraphLayoutViewMode = "full" | "grouped";
 export type GraphViewMode = GraphLayoutViewMode | "focused";
 
@@ -62,7 +64,7 @@ export interface GraphDistanceVisualState {
   heatmapSaturationMode?: GraphHeatmapSaturationMode;
   semanticNeighborCount?: number;
   status: GraphDistanceVisualStatus;
-  error?: string | null;
+  error?: string | LocalizedMessage | null;
 }
 
 export interface GraphCameraState {
@@ -139,8 +141,8 @@ export interface GraphEffectsState {
 export interface GraphEffectAvailability {
   enabled: boolean;
   available: boolean;
-  reason: string;
-  detail?: string;
+  reason: LocalizedMessage;
+  detail?: LocalizedMessage;
   visibleSegments?: number;
   segmentCap?: number;
 }
@@ -215,7 +217,7 @@ export interface GraphTemporalState {
 
 export interface GraphDirectedPathSnapshot {
   ready: boolean;
-  reason: string;
+  reason: LocalizedMessage;
   sourceId: string | null;
   targetId: string | null;
   path: string[];
@@ -257,7 +259,7 @@ export interface GraphCentralityNodeSummary {
 
 export interface GraphOverviewBackboneSnapshot {
   ready: boolean;
-  reason: string;
+  reason: LocalizedMessage;
   edgeIds: string[];
 }
 
@@ -266,19 +268,19 @@ export interface GraphAnalyticsSnapshot {
   directedPath: GraphDirectedPathSnapshot;
   communities: {
     ready: boolean;
-    reason: string;
+    reason: LocalizedMessage;
     count: number;
     modularity: number | null;
     summaries: GraphCommunitySummary[];
   };
   centrality: {
     ready: boolean;
-    reason: string;
+    reason: LocalizedMessage;
     topNodes: GraphCentralityNodeSummary[];
   };
   semanticRegions: {
     ready: boolean;
-    reason: string;
+    reason: LocalizedMessage;
     summaries: GraphSemanticRegionSummary[];
   };
   overviewBackbone: GraphOverviewBackboneSnapshot;
@@ -316,12 +318,11 @@ export interface GraphLoadSummary {
 
 export interface GraphLoadProgress {
   phase: GraphLoadPhase;
-  title: string;
   nodesLoaded: number;
   nodesTotal: number | null;
   edgesLoaded: number;
   edgesTotal: number | null;
-  message: string;
+  message: LocalizedMessage;
   progressKind: GraphLoadProgressKind;
   loaded: number | null;
   total: number | null;

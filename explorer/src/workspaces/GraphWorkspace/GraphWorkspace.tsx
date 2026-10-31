@@ -29,7 +29,7 @@ import { useLoadGraph, useReloadGraph } from "./useLoadGraph";
 import { GraphLibraryPicker } from "./GraphLibraryPicker";
 import { useGraphLibrary } from "./graphLibrary";
 import { GraphLoadingOverlay } from "./GraphLoadingOverlay";
-import { useI18n } from "../../i18n";
+import { formatMessage, message, sameMessage, useI18n } from "../../i18n";
 import type { MessageKey } from "../../i18n/messages";
 import { createGraphLoadProgress, getGraphLoadTitle } from "./graphLoading";
 import { GRAPH_THEME, withAlpha } from "./graphTheme";
@@ -149,8 +149,8 @@ type SemanticNeighborhoodResponse = {
 type LazyPluginRegistryEntry = {
   id: string;
   panelId: string;
-  label: string;
-  title: string;
+  labelKey: MessageKey;
+  titleKey: MessageKey;
   order: number;
   load: () => Promise<GraphPlugin>;
   shouldLoad: (context: {
@@ -1344,7 +1344,7 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
     scores: Record<string, number>;
     count: number;
     status: GraphDistanceVisualState["status"];
-    error: string | null;
+    error: GraphDistanceVisualState["error"];
   }>({
     anchorNodeId: null,
     scores: EMPTY_DISTANCE_RECORD,
@@ -1409,7 +1409,7 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
       nodesTotal: graphSummary.nodeCount,
       edgesLoaded: graphSummary.edgeCount,
       edgesTotal: graphSummary.edgeCount,
-      message: t("graph.msg.settling"),
+      message: message("graph.msg.settling"),
       showGraphBehind: true,
       layoutSource: graphSummary.layoutSource,
       layoutState: "bootstrapping",
@@ -2094,7 +2094,7 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
         scores: EMPTY_DISTANCE_RECORD,
         count: 0,
         status: distanceMode === "semantic" ? "unavailable" : "idle",
-        error: distanceMode === "semantic" ? t("toolbar.semanticNeedNode") : null,
+        error: distanceMode === "semantic" ? message("toolbar.semanticNeedNode") : null,
       });
       return;
     }
@@ -2121,11 +2121,18 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
           return;
         }
         if (!response.ok) {
-          throw new Error(response.status === 503
-            ? t("toolbar.semanticUnavailable")
-            : response.status === 404
-              ? t("toolbar.semanticNodeMissing")
-            : t("toolbar.semanticFailedStatus", { status: response.status }));
+          setSemanticDistanceState({
+            anchorNodeId: distanceAnchorNodeId,
+            scores: EMPTY_DISTANCE_RECORD,
+            count: 0,
+            status: "error",
+            error: response.status === 503
+              ? message("toolbar.semanticUnavailable")
+              : response.status === 404
+                ? message("toolbar.semanticNodeMissing")
+                : message("toolbar.semanticFailedStatus", { status: response.status }),
+          });
+          return;
         }
 
         const data: SemanticNeighborhoodResponse = await response.json();
@@ -2141,7 +2148,7 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
           scores,
           count: Object.keys(scores).length,
           status: Object.keys(scores).length > 0 ? "ready" : "unavailable",
-          error: Object.keys(scores).length > 0 ? null : t("toolbar.semanticNoNeighbors"),
+          error: Object.keys(scores).length > 0 ? null : message("toolbar.semanticNoNeighbors"),
         });
       } catch (error) {
         if (cancelled) {
@@ -2152,7 +2159,7 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
           scores: EMPTY_DISTANCE_RECORD,
           count: 0,
           status: "error",
-          error: error instanceof Error ? error.message : t("toolbar.semanticLoadFailed"),
+          error: error instanceof Error ? error.message : message("toolbar.semanticLoadFailed"),
         });
       }
     };
@@ -2161,7 +2168,7 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
     return () => {
       cancelled = true;
     };
-  }, [distanceAnchorNodeId, distanceMode, locale, t]);
+  }, [distanceAnchorNodeId, distanceMode]);
 
   const distanceVisualState = useMemo<GraphDistanceVisualState>(() => {
     if (activeDistanceMode === "off") {
@@ -2200,7 +2207,7 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
         heatmapSaturationMode: undefined,
         semanticNeighborCount: 0,
         status: "unavailable",
-        error: t("toolbar.distanceFullGraphOnly"),
+        error: message("toolbar.distanceFullGraphOnly"),
       };
     }
 
@@ -2220,7 +2227,7 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
         heatmapSaturationMode: undefined,
         semanticNeighborCount: 0,
         status: "unavailable",
-        error: t("toolbar.distanceNeedNode"),
+        error: message("toolbar.distanceNeedNode"),
       };
     }
 
@@ -2278,9 +2285,7 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
     graph.order,
     heatmapRenderSnapshot,
     semanticDistanceState,
-    locale,
     structuralDistances,
-    t,
     viewMode,
   ]);
 
@@ -2460,8 +2465,8 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
       {
         id: "exploration-effects",
         panelId: "effects-panel",
-        label: t("toolbar.effects"),
-        title: t("toolbar.effectsTitle"),
+        labelKey: "toolbar.effects",
+        titleKey: "toolbar.effectsTitle",
         order: 18,
         load: loadExplorationEffectsPlugin,
         shouldLoad: explorationEffectsShouldLoad,
@@ -2469,8 +2474,8 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
       {
         id: "neighborhood-panel",
         panelId: "neighborhood-panel",
-        label: t("toolbar.neighbors"),
-        title: t("toolbar.neighborsTitle"),
+        labelKey: "toolbar.neighbors",
+        titleKey: "toolbar.neighborsTitle",
         order: 30,
         load: loadNeighborhoodPanelPlugin,
         shouldLoad: neighborhoodPanelShouldLoad,
@@ -2478,14 +2483,14 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
       {
         id: "temporal-overlay",
         panelId: "temporal-panel",
-        label: t("toolbar.temporal"),
-        title: t("toolbar.temporalTitle"),
+        labelKey: "toolbar.temporal",
+        titleKey: "toolbar.temporalTitle",
         order: 40,
         load: loadTemporalOverlayPlugin,
         shouldLoad: temporalOverlayShouldLoad,
       },
     ],
-    [locale, t],
+    [],
   );
   const activePlugins = useMemo(
     () => pluginRegistry.map((entry) => loadedPlugins[entry.id]).filter((plugin): plugin is GraphPlugin => Boolean(plugin)),
@@ -2705,8 +2710,8 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
         return (
           p.enabled !== n.enabled ||
           p.available !== n.available ||
-          p.reason !== n.reason ||
-          p.detail !== n.detail ||
+          !sameMessage(p.reason, n.reason) ||
+          !sameMessage(p.detail, n.detail) ||
           p.visibleSegments !== n.visibleSegments ||
           p.segmentCap !== n.segmentCap
         );
@@ -2770,33 +2775,33 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
   const pluginToolbarItems = useMemo<GraphPluginToolbarItem[]>(
     () => pluginRegistry.map((entry) => ({
       id: `${entry.id}-toggle`,
-      label: entry.label,
-      title: entry.title,
+      label: t(entry.labelKey),
+      title: t(entry.titleKey),
       active: pluginContext.isPanelOpen(entry.panelId),
       order: entry.order,
       onClick: () => pluginContext.dispatchAction({ type: "togglePanel", panelId: entry.panelId }),
     })),
-    [pluginContext, pluginRegistry],
+    [locale, pluginContext, pluginRegistry, t],
   );
   const pluginPanels = useMemo(
     () => collectPluginPanels(activePlugins, pluginContext),
-    [activePlugins, pluginContext],
+    [activePlugins, locale, pluginContext],
   );
   const pluginOverlays = useMemo(
     () => collectPluginOverlays(activePlugins, pluginContext),
-    [activePlugins, pluginContext],
+    [activePlugins, locale, pluginContext],
   );
   const pendingDockPanels = useMemo<GraphPluginPanelDescriptor[]>(
     () => pluginRegistry
       .filter((entry) => pluginPanelState[entry.panelId] && !loadedPlugins[entry.id])
       .map((entry) => ({
         id: entry.panelId,
-        title: entry.label,
+        title: t(entry.labelKey),
         placement: "bottom" as const,
         order: entry.order,
-        content: <div style={pluginLoadingStyle}>{t("toolbar.loadingPanel", { label: entry.label })}</div>,
+        content: <div style={pluginLoadingStyle}>{t("toolbar.loadingPanel", { label: t(entry.labelKey) })}</div>,
       })),
-    [loadedPlugins, pluginPanelState, pluginRegistry],
+    [loadedPlugins, locale, pluginPanelState, pluginRegistry, t],
   );
   const dockPanels = [...pluginPanels, ...pendingDockPanels]
     .filter((panel) => panel.placement === "bottom" || panel.placement === "side")
@@ -3244,7 +3249,11 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
                       })}</span>
                     )}
                     {distanceVisualState.status === "unavailable" || distanceVisualState.status === "error" ? (
-                      <span style={{ color: GRAPH_THEME.ui.control.dangerText }}>{distanceVisualState.error}</span>
+                      <span style={{ color: GRAPH_THEME.ui.control.dangerText }}>
+                        {typeof distanceVisualState.error === "object" && distanceVisualState.error
+                          ? formatMessage(distanceVisualState.error)
+                          : distanceVisualState.error}
+                      </span>
                     ) : null}
                     {heatmapRenderedSummary ? (
                       <span style={{ color: GRAPH_THEME.ui.text.muted }}>{heatmapRenderedSummary}</span>

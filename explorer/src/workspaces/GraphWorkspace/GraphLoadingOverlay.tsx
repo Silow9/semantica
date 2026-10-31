@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 
-import { t, useI18n } from "../../i18n";
+import { formatMessage, message, t, useI18n } from "../../i18n";
 import type { MessageKey } from "../../i18n/messages";
 import { GRAPH_THEME, withAlpha } from "./graphTheme";
 import { GRAPH_LOAD_STAGE_SEQUENCE, createGraphLoadProgress } from "./graphLoading";
@@ -279,7 +279,7 @@ export function GraphLoadingOverlay({
   const [displayProgress, setDisplayProgress] = useState<GraphLoadProgress>(
     progress ?? createGraphLoadProgress({
       phase: "bootstrapping",
-      message: translate("graph.msg.prepare"),
+      message: message("graph.msg.prepare"),
       progressKind: "indeterminate",
     }),
   );
@@ -388,7 +388,7 @@ export function GraphLoadingOverlay({
               {translate(phaseTitleKey(activeProgress.phase))}
             </div>
             <div style={{ color: "#8fa8c6", fontSize: 13, lineHeight: 1.5 }}>
-              {activeProgress.message}
+              {formatMessage(activeProgress.message)}
             </div>
           </div>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 10, flexShrink: 0 }}>

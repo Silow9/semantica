@@ -15,7 +15,7 @@ import {
   type GraphNodeShapeVariant,
 } from "./graphTheme";
 import { classifyEntityShape } from "./graphEntityShape";
-import { t } from "../../i18n";
+import { message } from "../../i18n";
 import { createGraphLoadProgress } from "./graphLoading";
 import {
   buildSmallGraphSeedPositions,
@@ -375,11 +375,11 @@ async function fetchAllNodes(
       edgesLoaded: 0,
       edgesTotal: null,
       message: total
-        ? t("graph.msg.loadingNodesTotal", {
+        ? message("graph.msg.loadingNodesTotal", {
             loaded: collected.length.toLocaleString(),
             total: total.toLocaleString(),
           })
-        : t("graph.msg.loadingNodes", { loaded: collected.length.toLocaleString() }),
+        : message("graph.msg.loadingNodes", { loaded: collected.length.toLocaleString() }),
     }));
 
     if (!data.next_cursor) {
@@ -451,11 +451,11 @@ async function fetchAllEdges(
       edgesLoaded: safeLoaded,
       edgesTotal: total,
       message: total
-        ? t("graph.msg.loadingEdgesTotal", {
+        ? message("graph.msg.loadingEdgesTotal", {
             loaded: safeLoaded.toLocaleString(),
             total: total.toLocaleString(),
           })
-        : t("graph.msg.loadingEdges", { loaded: safeLoaded.toLocaleString() }),
+        : message("graph.msg.loadingEdges", { loaded: safeLoaded.toLocaleString() }),
     }));
 
     if (!data.next_cursor) {
@@ -498,7 +498,7 @@ export function useLoadGraph(options: UseLoadGraphOptions = {}) {
         nodesTotal: null,
         edgesLoaded: 0,
         edgesTotal: null,
-        message: t("graph.msg.prepare"),
+        message: message("graph.msg.prepare"),
       }));
 
       const fetchedNodes = await fetchAllNodes(signal, onProgress);
@@ -541,7 +541,7 @@ export function useLoadGraph(options: UseLoadGraphOptions = {}) {
         nodesTotal: fetchedNodes.length,
         edgesLoaded: fetchedEdges.length,
         edgesTotal: fetchedEdges.length,
-        message: t("graph.msg.styling"),
+        message: message("graph.msg.styling"),
       }));
 
       const colorAccessor = chooseColorAccessor(draftAttributes);
@@ -695,7 +695,7 @@ export function useLoadGraph(options: UseLoadGraphOptions = {}) {
         nodesTotal: nodesToMerge.length,
         edgesLoaded: edgesToMerge.length,
         edgesTotal: edgesToMerge.length,
-        message: t("graph.msg.hydrating"),
+        message: message("graph.msg.hydrating"),
       }));
 
       try {
@@ -735,7 +735,7 @@ export function useLoadGraph(options: UseLoadGraphOptions = {}) {
         nodesTotal: summary.nodeCount,
         edgesLoaded: summary.edgeCount,
         edgesTotal: summary.edgeCount,
-        message: summary.layoutReady ? t("graph.msg.ready") : t("graph.msg.settling"),
+        message: message(summary.layoutReady ? "graph.msg.ready" : "graph.msg.settling"),
         showGraphBehind: !summary.layoutReady,
         layoutSource: summary.layoutSource,
         layoutState: summary.layoutReady ? "interactive" : "bootstrapping",

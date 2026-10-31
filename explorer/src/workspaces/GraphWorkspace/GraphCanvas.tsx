@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useCallback, forwardRef, useImperativeHandle, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useCallback, forwardRef, useImperativeHandle, useState, type ReactNode } from "react";
 import Sigma from "sigma";
+import Graph from "graphology";
 import FA2Layout from "graphology-layout-forceatlas2/worker";
-import { t, useI18n } from "../../i18n";
+import { message, useI18n } from "../../i18n";
 import type { MessageKey } from "../../i18n/messages";
 import { graph, type EdgeAttributes, type NodeAttributes } from "../../store/graphStore";
 import { translateRelationType } from "./graphTermLabels";
@@ -151,21 +152,96 @@ const LAYOUT_FRAME_SMOOTHING = 0.08;
 const LAYOUT_FRAME_RELEASE_SMOOTHING = 0.2;
 const LAYOUT_FRAME_RELEASE_TOLERANCE = 0.002;
 
-function withCoolingSettings<T extends { settings: { slowDown: number } }>(params: T): T {
-  return {
-    ...params,
-    settings: {
-      ...params.settings,
-      slowDown: params.settings.slowDown * LAYOUT_COOLING_SLOWDOWN_FACTOR,
-    },
-  };
+// The worker publishes positions once per iteration, at a cadence unrelated to
+// the display. Rendered positions glide toward the latest worker output every
+// frame instead of jumping to it.
+const LAYOUT_GLIDE_RUNNING = 0.22;
+const LAYOUT_GLIDE_SETTLING = 0.16;
+const LAYOUT_GLIDE_EPSILON_RATIO = 0.0004;
+
+type FA2Runtime = FA2Layout & {
+  __targetKey?: string;
+  settings?: { slowDown: number };
+};
+
+type LayoutGlide = {
+  layoutGraph: Graph;
+  target: GraphSceneGraph;
+  mirror: boolean;
+  baseSlowDown: number;
+};
+
+type PositionAttributes = { x: number; y: number };
+
+function coolingSlowDown(baseSlowDown: number, elapsedMs: number, coolingStartMs: number, settleMs: number): number {
+  const progress = Math.min(1, Math.max(0, (elapsedMs - coolingStartMs) / Math.max(1, settleMs - coolingStartMs)));
+  const eased = progress * progress * (3 - 2 * progress);
+  return baseSlowDown * (1 + (LAYOUT_COOLING_SLOWDOWN_FACTOR - 1) * eased);
 }
 
-function clearTimeoutRef(ref: { current: number | null }) {
-  if (ref.current !== null) {
-    window.clearTimeout(ref.current);
-    ref.current = null;
-  }
+function buildForceLayoutGraph(source: GraphSceneGraph): Graph {
+  const layoutGraph = new Graph({ type: source.type, multi: source.multi, allowSelfLoops: true });
+  source.forEachNode((node, attrs) => {
+    layoutGraph.addNode(node, {
+      x: Number(attrs.x) || 0,
+      y: Number(attrs.y) || 0,
+      size: Number(attrs.size) || 1,
+      fixed: Boolean(attrs.fixed),
+    });
+  });
+  source.forEachEdge((edge, attrs, sourceId, targetId, _sourceAttrs, _targetAttrs, undirected) => {
+    const weight = Number(attrs.weight);
+    const edgeAttrs = { weight: Number.isFinite(weight) ? weight : 1 };
+    if (undirected) {
+      layoutGraph.addUndirectedEdgeWithKey(edge, sourceId, targetId, edgeAttrs);
+    } else {
+      layoutGraph.addDirectedEdgeWithKey(edge, sourceId, targetId, edgeAttrs);
+    }
+  });
+  return layoutGraph;
+}
+
+// Writes positions in place: graph events would make Sigma rerun every reducer
+// for a pure position change.
+function glideNodePositions(layoutGraph: Graph, target: GraphSceneGraph, amount: number) {
+  let maxDelta = 0;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  layoutGraph.forEachNode((node, attrs) => {
+    if (!target.hasNode(node)) {
+      return;
+    }
+    const nextX = Number(attrs.x);
+    const nextY = Number(attrs.y);
+    if (!Number.isFinite(nextX) || !Number.isFinite(nextY)) {
+      return;
+    }
+    const current = target.getNodeAttributes(node) as unknown as PositionAttributes;
+    const dx = nextX - current.x;
+    const dy = nextY - current.y;
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) {
+      current.x = nextX;
+      current.y = nextY;
+    } else {
+      current.x += dx * amount;
+      current.y += dy * amount;
+      maxDelta = Math.max(maxDelta, Math.abs(dx), Math.abs(dy));
+    }
+    minX = Math.min(minX, nextX);
+    maxX = Math.max(maxX, nextX);
+    minY = Math.min(minY, nextY);
+    maxY = Math.max(maxY, nextY);
+  });
+  const span = Number.isFinite(minX) ? Math.max(maxX - minX, maxY - minY) : 0;
+  return { maxDelta, span };
+}
+
+function requestPositionRender(sigma: Sigma) {
+  // Sigma reads coordinates from graph attributes while processing, so a
+  // position-only frame needs reprocessing but not the node and edge reducers.
+  sigma.refresh({ partialGraph: { nodes: [] }, skipIndexation: false, schedule: true });
 }
 
 function measureGraphExtent(target: GraphSceneGraph): SigmaCustomBBox | null {
@@ -280,10 +356,8 @@ function syncDisplayNodePositionsFromStore(
       return;
     }
 
-    targetGraph.mergeNodeAttributes(nodeId, {
-      x: nextX,
-      y: nextY,
-    });
+    currentAttrs.x = nextX;
+    currentAttrs.y = nextY;
     changed += 1;
   });
 
@@ -611,7 +685,7 @@ const ZOOM_TIER_LABEL_KEYS: Record<GraphZoomTier, MessageKey> = {
 };
 
 function requiresZoomTier(tier: GraphZoomTier) {
-  return t("effects.reason.requires", { tier: t(ZOOM_TIER_LABEL_KEYS[tier]) });
+  return message("effects.reason.requires", { tier: message(ZOOM_TIER_LABEL_KEYS[tier]) });
 }
 
 function buildEffectAvailability(
@@ -642,31 +716,31 @@ function buildEffectAvailability(
   const regionsTierReady = zoomTierAtLeast(interactionState.zoomTier, GRAPH_THEME.effects.semanticRegions.minZoomTier);
   const contoursTierReady = zoomTierAtLeast(interactionState.zoomTier, GRAPH_THEME.effects.contours.minZoomTier);
   const hasPrimaryNode = Boolean(interactionState.hoveredNodeId || interactionState.selectedNodeId);
-  const layoutReason = t("effects.reason.layoutSettling");
-  const disabledReason = t("effects.reason.disabledToggle");
-  const readyReason = t("effects.reason.ready");
+  const layoutReason = message("effects.reason.layoutSettling");
+  const disabledReason = message("effects.reason.disabledToggle");
+  const readyReason = message("effects.reason.ready");
 
   const pathPulse = !effectsState.pathPulseEnabled
     ? { enabled: false, available: false, reason: disabledReason }
     : isLayoutRunning
       ? { enabled: true, available: false, reason: layoutReason }
     : !hasActivePath
-      ? { enabled: true, available: false, reason: t("effects.reason.noActivePath") }
+      ? { enabled: true, available: false, reason: message("effects.reason.noActivePath") }
       : !pulseTierReady
         ? {
             enabled: true,
             available: false,
-            reason: t("effects.reason.zoomTier"),
+            reason: message("effects.reason.zoomTier"),
             detail: requiresZoomTier(GRAPH_THEME.effects.pathPulse.minZoomTier),
           }
         : visiblePathSegments === 0
-          ? { enabled: true, available: false, reason: t("effects.reason.offscreen") }
+          ? { enabled: true, available: false, reason: message("effects.reason.offscreen") }
           : visiblePathSegments > GRAPH_THEME.effects.pathPulse.maxSegments
             ? {
                 enabled: true,
                 available: false,
-                reason: t("effects.reason.pathCap"),
-                detail: t("effects.reason.visibleSegments", { count: visiblePathSegments }),
+                reason: message("effects.reason.pathCap"),
+                detail: message("effects.reason.visibleSegments", { count: visiblePathSegments }),
                 visibleSegments: visiblePathSegments,
                 segmentCap: GRAPH_THEME.effects.pathPulse.maxSegments,
               }
@@ -683,22 +757,22 @@ function buildEffectAvailability(
     : isLayoutRunning
       ? { enabled: true, available: false, reason: layoutReason }
     : !hasActivePath
-      ? { enabled: true, available: false, reason: t("effects.reason.noActivePath") }
+      ? { enabled: true, available: false, reason: message("effects.reason.noActivePath") }
       : !flowTierReady
         ? {
             enabled: true,
             available: false,
-            reason: t("effects.reason.zoomTier"),
+            reason: message("effects.reason.zoomTier"),
             detail: requiresZoomTier(GRAPH_THEME.effects.pathFlow.minZoomTier),
           }
         : visiblePathSegments === 0
-          ? { enabled: true, available: false, reason: t("effects.reason.offscreen") }
+          ? { enabled: true, available: false, reason: message("effects.reason.offscreen") }
           : visiblePathSegments > GRAPH_THEME.effects.pathFlow.maxSegments
             ? {
                 enabled: true,
                 available: false,
-                reason: t("effects.reason.pathCap"),
-                detail: t("effects.reason.visibleSegments", { count: visiblePathSegments }),
+                reason: message("effects.reason.pathCap"),
+                detail: message("effects.reason.visibleSegments", { count: visiblePathSegments }),
                 visibleSegments: visiblePathSegments,
                 segmentCap: GRAPH_THEME.effects.pathFlow.maxSegments,
               }
@@ -715,12 +789,12 @@ function buildEffectAvailability(
     : isLayoutRunning
       ? { enabled: true, available: false, reason: layoutReason }
     : !hasPrimaryNode
-      ? { enabled: true, available: false, reason: t("effects.reason.noFocal") }
+      ? { enabled: true, available: false, reason: message("effects.reason.noFocal") }
       : !lensTierReady
         ? {
             enabled: true,
             available: false,
-            reason: t("effects.reason.zoomTier"),
+            reason: message("effects.reason.zoomTier"),
             detail: requiresZoomTier(GRAPH_THEME.effects.lens.minZoomTier),
           }
         : { enabled: true, available: true, reason: readyReason };
@@ -730,12 +804,12 @@ function buildEffectAvailability(
     : isLayoutRunning
       ? { enabled: true, available: false, reason: layoutReason }
     : !temporalState?.currentTime
-      ? { enabled: true, available: false, reason: t("effects.reason.noTemporal") }
+      ? { enabled: true, available: false, reason: message("effects.reason.noTemporal") }
       : !temporalTierReady
         ? {
             enabled: true,
             available: false,
-            reason: t("effects.reason.zoomTier"),
+            reason: message("effects.reason.zoomTier"),
             detail: requiresZoomTier(GRAPH_THEME.effects.temporalEmphasis.minZoomTier),
           }
         : { enabled: true, available: true, reason: readyReason };
@@ -748,14 +822,14 @@ function buildEffectAvailability(
       ? {
           enabled: true,
           available: false,
-          reason: t("effects.reason.zoomTier"),
+          reason: message("effects.reason.zoomTier"),
           detail: requiresZoomTier(GRAPH_THEME.effects.semanticRegions.minZoomTier),
         }
       : !analytics?.semanticRegions.ready
         ? {
             enabled: true,
             available: false,
-            reason: analytics?.semanticRegions.reason ?? t("effects.reason.waitingRegions"),
+            reason: analytics?.semanticRegions.reason ?? message("effects.reason.waitingRegions"),
           }
         : { enabled: true, available: true, reason: analytics.semanticRegions.reason };
 
@@ -767,14 +841,14 @@ function buildEffectAvailability(
       ? {
           enabled: true,
           available: false,
-          reason: t("effects.reason.zoomTier"),
+          reason: message("effects.reason.zoomTier"),
           detail: requiresZoomTier(GRAPH_THEME.effects.contours.minZoomTier),
         }
       : !analytics?.centrality.ready
         ? {
             enabled: true,
             available: false,
-            reason: analytics?.centrality.reason ?? t("effects.reason.waitingCentrality"),
+            reason: analytics?.centrality.reason ?? message("effects.reason.waitingCentrality"),
           }
         : { enabled: true, available: true, reason: analytics.centrality.reason };
 
@@ -784,14 +858,14 @@ function buildEffectAvailability(
       ? {
           enabled: true,
           available: false,
-          reason: analytics?.directedPath.reason ?? t("effects.reason.waitingPath"),
+          reason: analytics?.directedPath.reason ?? message("effects.reason.waitingPath"),
         }
       : {
           enabled: true,
           available: true,
           reason: analytics.directedPath.verifiedAgainstActivePath
-            ? t("effects.reason.pathMatches")
-            : t("effects.reason.pathDiffers"),
+            ? message("effects.reason.pathMatches")
+            : message("effects.reason.pathDiffers"),
         };
 
   const communities = !effectsState.communitiesEnabled
@@ -800,13 +874,13 @@ function buildEffectAvailability(
       ? {
           enabled: true,
           available: false,
-          reason: analytics?.communities.reason ?? t("effects.reason.waitingCommunities"),
+          reason: analytics?.communities.reason ?? message("effects.reason.waitingCommunities"),
         }
       : {
           enabled: true,
           available: true,
           reason: analytics.communities.modularity !== null
-            ? t("effects.reason.modularity", { value: analytics.communities.modularity.toFixed(3) })
+            ? message("effects.reason.modularity", { value: analytics.communities.modularity.toFixed(3) })
             : analytics.communities.reason,
         };
 
@@ -816,12 +890,12 @@ function buildEffectAvailability(
       ? {
           enabled: true,
           available: false,
-          reason: analytics?.centrality.reason ?? t("effects.reason.waitingCentrality"),
+          reason: analytics?.centrality.reason ?? message("effects.reason.waitingCentrality"),
         }
       : { enabled: true, available: true, reason: analytics.centrality.reason };
 
   const legend = effectsState.legendEnabled
-    ? { enabled: true, available: true, reason: t("effects.reason.panelEnabled") }
+    ? { enabled: true, available: true, reason: message("effects.reason.panelEnabled") }
     : { enabled: false, available: false, reason: disabledReason };
 
   // #1009: edge labels are immediately available once the graph is loaded —
@@ -831,7 +905,7 @@ function buildEffectAvailability(
     : { enabled: false, available: false, reason: disabledReason };
 
   const diagnostics = !GRAPH_THEME.effects.diagnostics.enabledInDev
-    ? { enabled: false, available: false, reason: t("effects.reason.disabledProduction") }
+    ? { enabled: false, available: false, reason: message("effects.reason.disabledProduction") }
     : effectsState.diagnosticsEnabled
       ? { enabled: true, available: true, reason: readyReason }
       : { enabled: false, available: false, reason: disabledReason };
@@ -1402,11 +1476,16 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
     const appliedGraphVersionRef = useRef<number | null>(null);
     const fittedDisplaySignatureRef = useRef<DisplayFitSignature | null>(null);
     const layoutSyncFrameRef = useRef<number | null>(null);
-    const layoutSyncTickRef = useRef(0);
     const deferredFocusFrameRef = useRef<number | null>(null);
     const fullGraphLayoutSettleTimeoutRef = useRef<number | null>(null);
     const groupedLayoutSettleTimeoutRef = useRef<number | null>(null);
-    const layoutCoolingTimeoutRef = useRef<number | null>(null);
+    const layoutRunRef = useRef<{
+      targetKey: string;
+      startedAt: number;
+      coolingStartMs: number;
+      settleMs: number;
+    } | null>(null);
+    const layoutGlideRef = useRef<LayoutGlide | null>(null);
     const reducerWarningStateRef = useRef<{ missingEdges: Set<string>; missingNodes: Set<string> }>({
       missingEdges: new Set<string>(),
       missingNodes: new Set<string>(),
@@ -1468,7 +1547,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
     const previousInteractionStateRef = useRef<GraphInteractionState | null>(null);
     const previousDistanceVisualStateRef = useRef<GraphDistanceVisualState | undefined>(undefined);
     useEffect(() => {
-      if (!isLayoutRunning) {
+      if (!isLayoutRunning && !layoutGlideRef.current) {
         setLayoutSettledEpoch((epoch) => epoch + 1);
       }
     }, [displayGraph, graphVersion, isLayoutRunning]);
@@ -2052,12 +2131,14 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
       if (!sigma) {
         return;
       }
-      sigma.setSetting("renderEdgeLabels", effectsState.edgeLabelsEnabled);
+      // Edge labels are canvas text redrawn every frame and unreadable while
+      // nodes are still moving.
+      sigma.setSetting("renderEdgeLabels", effectsState.edgeLabelsEnabled && !isLayoutRunning);
       sigma.scheduleRefresh();
-    }, [effectsState.edgeLabelsEnabled]);
+    }, [effectsState.edgeLabelsEnabled, graphReady, isLayoutRunning]);
 
-    useEffect(() => {
-      sigmaRef.current?.scheduleRefresh();
+    useLayoutEffect(() => {
+      sigmaRef.current?.refresh();
     }, [locale]);
 
     useEffect(() => {
@@ -2531,18 +2612,70 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
       };
     }, [drawOverlayFrame, graphReady]);
 
+    const startLayoutGlide = useCallback(() => {
+      if (layoutSyncFrameRef.current !== null) {
+        return;
+      }
+
+      const step = () => {
+        layoutSyncFrameRef.current = null;
+        const glide = layoutGlideRef.current;
+        if (!glide) {
+          return;
+        }
+
+        const layout = fa2Ref.current as FA2Runtime | null;
+        const running = Boolean(layout?.isRunning());
+        const run = layoutRunRef.current;
+        if (running && layout?.settings && run) {
+          layout.settings.slowDown = coolingSlowDown(
+            glide.baseSlowDown,
+            performance.now() - run.startedAt,
+            run.coolingStartMs,
+            run.settleMs,
+          );
+        }
+
+        const { maxDelta, span } = glideNodePositions(
+          glide.layoutGraph,
+          glide.target,
+          running ? LAYOUT_GLIDE_RUNNING : LAYOUT_GLIDE_SETTLING,
+        );
+        if (glide.mirror) {
+          syncDisplayNodePositionsFromStore(displayGraphRef.current, graph);
+        }
+        const sigma = sigmaRef.current;
+        if (sigma) {
+          requestPositionRender(sigma);
+        }
+
+        if (!running && maxDelta <= Math.max(span, 1) * LAYOUT_GLIDE_EPSILON_RATIO) {
+          glideNodePositions(glide.layoutGraph, glide.target, 1);
+          if (glide.mirror) {
+            syncDisplayNodePositionsFromStore(displayGraphRef.current, graph);
+          }
+          layoutGlideRef.current = null;
+          sigma?.scheduleRefresh();
+          setLayoutSettledEpoch((epoch) => epoch + 1);
+          return;
+        }
+
+        layoutSyncFrameRef.current = window.requestAnimationFrame(step);
+      };
+
+      layoutSyncFrameRef.current = window.requestAnimationFrame(step);
+    }, []);
+
     useEffect(() => {
-      const sigma = sigmaRef.current;
       const layoutTargetGraph = displayMeta.layoutMode === "owned" ? displayGraph : graph;
       const usingGroupedOwnedLayout = displayMeta.layoutMode === "owned" && viewMode === "grouped";
       const targetKey = displayMeta.layoutMode === "owned"
         ? `display:${graphVersion}:${viewMode}`
         : `store:${displayMeta.layoutMode}`;
-      const currentTargetKey = (fa2Ref.current as (FA2Layout & { __targetKey?: string }) | null)?.__targetKey;
 
       if (!isLayoutRunning) {
+        layoutRunRef.current = null;
         fa2Ref.current?.stop();
-        clearTimeoutRef(layoutCoolingTimeoutRef);
         if (fullGraphLayoutSettleTimeoutRef.current !== null) {
           window.clearTimeout(fullGraphLayoutSettleTimeoutRef.current);
           fullGraphLayoutSettleTimeoutRef.current = null;
@@ -2551,31 +2684,59 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
           window.clearTimeout(groupedLayoutSettleTimeoutRef.current);
           groupedLayoutSettleTimeoutRef.current = null;
         }
-        if (layoutSyncFrameRef.current !== null) {
-          window.cancelAnimationFrame(layoutSyncFrameRef.current);
-          layoutSyncFrameRef.current = null;
+        if (layoutGlideRef.current) {
+          startLayoutGlide();
         }
         return;
       }
 
-      if (!fa2Ref.current || currentTargetKey !== targetKey) {
-        fa2Ref.current?.kill();
-        const nextLayout = new FA2Layout(
-          layoutTargetGraph,
-          usingGroupedOwnedLayout ? GROUPED_FA2_SETTINGS : FA2_SETTINGS,
-        ) as FA2Layout & { __targetKey?: string };
+      const layoutParams = usingGroupedOwnedLayout ? GROUPED_FA2_SETTINGS : FA2_SETTINGS;
+      const settleMs = usingGroupedOwnedLayout ? GRAPH_THEME.grouped.layout.settleMs : FULL_GRAPH_LAYOUT_SETTLE_MS;
+      const coolingStartMs = settleMs * LAYOUT_COOLING_START_RATIO;
+      // Graph mutations during a run (temporal snapshots, realtime updates) re-run
+      // this effect; the run continues from its original start instead of
+      // restarting an undamped layout and a fresh settle timer.
+      const now = performance.now();
+      if (layoutRunRef.current?.targetKey !== targetKey) {
+        layoutRunRef.current = { targetKey, startedAt: now, coolingStartMs, settleMs };
+      }
+      const elapsedMs = now - layoutRunRef.current.startedAt;
+
+      const currentLayout = fa2Ref.current as FA2Runtime | null;
+      const currentGlide = layoutGlideRef.current;
+      const needsNewLayout = !currentLayout
+        || currentLayout.__targetKey !== targetKey
+        || !currentGlide
+        || currentGlide.target !== layoutTargetGraph
+        || currentGlide.layoutGraph.order !== layoutTargetGraph.order
+        || currentGlide.layoutGraph.size !== layoutTargetGraph.size;
+
+      if (needsNewLayout) {
+        currentLayout?.kill();
+        const layoutGraph = buildForceLayoutGraph(layoutTargetGraph);
+        const nextLayout = new FA2Layout(layoutGraph, layoutParams) as FA2Runtime;
         nextLayout.__targetKey = targetKey;
         fa2Ref.current = nextLayout;
+        layoutGlideRef.current = {
+          layoutGraph,
+          target: layoutTargetGraph,
+          mirror: displayMeta.layoutMode === "mirrored",
+          baseSlowDown: layoutParams.settings.slowDown,
+        };
         debugGraphRuntime("layout-target-changed", {
           graphVersion,
           layoutMode: displayMeta.layoutMode,
           target: displayMeta.layoutMode === "owned" ? "display-owned" : displayMeta.layoutMode === "base" ? "base" : "store-for-mirror",
           order: layoutTargetGraph.order,
           size: layoutTargetGraph.size,
+          elapsedMs: Math.round(elapsedMs),
         });
+      } else {
+        currentGlide.mirror = displayMeta.layoutMode === "mirrored";
       }
 
-      fa2Ref.current.start();
+      fa2Ref.current!.start();
+      startLayoutGlide();
 
       if (groupedLayoutSettleTimeoutRef.current !== null) {
         window.clearTimeout(groupedLayoutSettleTimeoutRef.current);
@@ -2586,20 +2747,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
         fullGraphLayoutSettleTimeoutRef.current = null;
       }
 
-      const layoutParams = usingGroupedOwnedLayout ? GROUPED_FA2_SETTINGS : FA2_SETTINGS;
-      const settleMs = usingGroupedOwnedLayout ? GRAPH_THEME.grouped.layout.settleMs : FULL_GRAPH_LAYOUT_SETTLE_MS;
-      clearTimeoutRef(layoutCoolingTimeoutRef);
-      layoutCoolingTimeoutRef.current = window.setTimeout(() => {
-        layoutCoolingTimeoutRef.current = null;
-        fa2Ref.current?.kill();
-        const coolingLayout = new FA2Layout(
-          layoutTargetGraph,
-          withCoolingSettings(layoutParams),
-        ) as FA2Layout & { __targetKey?: string };
-        coolingLayout.__targetKey = `${targetKey}:cooling`;
-        fa2Ref.current = coolingLayout;
-        coolingLayout.start();
-      }, settleMs * LAYOUT_COOLING_START_RATIO);
+      const remainingSettleMs = Math.max(0, settleMs - elapsedMs);
 
       if (usingGroupedOwnedLayout) {
         groupedLayoutSettleTimeoutRef.current = window.setTimeout(() => {
@@ -2612,7 +2760,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
             order: displayGraphRef.current.order,
             size: displayGraphRef.current.size,
           });
-        }, GRAPH_THEME.grouped.layout.settleMs);
+        }, remainingSettleMs);
       } else {
         fullGraphLayoutSettleTimeoutRef.current = window.setTimeout(() => {
           fa2Ref.current?.stop();
@@ -2625,57 +2773,10 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
             order: displayGraphRef.current.order,
             size: displayGraphRef.current.size,
           });
-        }, FULL_GRAPH_LAYOUT_SETTLE_MS);
-      }
-
-      if (displayMeta.layoutMode === "mirrored" && sigma) {
-        let disposed = false;
-
-        const syncTick = () => {
-          if (disposed || !sigmaRef.current || !isLayoutRunning) {
-            return;
-          }
-
-          const changed = syncDisplayNodePositionsFromStore(displayGraphRef.current, graph);
-          if (changed > 0) {
-            sigmaRef.current.scheduleRefresh();
-            layoutSyncTickRef.current += 1;
-            if (layoutSyncTickRef.current === 1 || layoutSyncTickRef.current % 30 === 0) {
-              debugGraphRuntime("layout-mirror-sync", {
-                graphVersion: graphVersionRef.current,
-                changedNodes: changed,
-                tick: layoutSyncTickRef.current,
-              });
-            }
-          }
-
-          layoutSyncFrameRef.current = window.requestAnimationFrame(syncTick);
-        };
-
-        layoutSyncTickRef.current = 0;
-        layoutSyncFrameRef.current = window.requestAnimationFrame(syncTick);
-
-        return () => {
-          disposed = true;
-          clearTimeoutRef(layoutCoolingTimeoutRef);
-          if (fullGraphLayoutSettleTimeoutRef.current !== null) {
-            window.clearTimeout(fullGraphLayoutSettleTimeoutRef.current);
-            fullGraphLayoutSettleTimeoutRef.current = null;
-          }
-          if (groupedLayoutSettleTimeoutRef.current !== null) {
-            window.clearTimeout(groupedLayoutSettleTimeoutRef.current);
-            groupedLayoutSettleTimeoutRef.current = null;
-          }
-          if (layoutSyncFrameRef.current !== null) {
-            window.cancelAnimationFrame(layoutSyncFrameRef.current);
-            layoutSyncFrameRef.current = null;
-          }
-          fa2Ref.current?.stop();
-        };
+        }, remainingSettleMs);
       }
 
       return () => {
-        clearTimeoutRef(layoutCoolingTimeoutRef);
         if (fullGraphLayoutSettleTimeoutRef.current !== null) {
           window.clearTimeout(fullGraphLayoutSettleTimeoutRef.current);
           fullGraphLayoutSettleTimeoutRef.current = null;
@@ -2686,7 +2787,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
         }
         fa2Ref.current?.stop();
       };
-    }, [displayGraph, displayMeta.layoutMode, graphVersion, isLayoutRunning, viewMode]);
+    }, [displayGraph, displayMeta.layoutMode, graphVersion, isLayoutRunning, startLayoutGlide, viewMode]);
 
     useEffect(() => {
       const sigma = sigmaRef.current;
@@ -2710,13 +2811,13 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
         framed = framed
           ? lerpBBox(framed, extent, isLayoutRunning ? LAYOUT_FRAME_SMOOTHING : LAYOUT_FRAME_RELEASE_SMOOTHING)
           : extent;
-        if (!isLayoutRunning && isBBoxClose(framed, extent)) {
+        if (!isLayoutRunning && !layoutGlideRef.current && isBBoxClose(framed, extent)) {
           runtimeSigma.setCustomBBox(null);
-          runtimeSigma.scheduleRefresh();
+          requestPositionRender(runtimeSigma);
           return;
         }
         runtimeSigma.setCustomBBox(framed);
-        runtimeSigma.scheduleRefresh();
+        requestPositionRender(runtimeSigma);
         frame = window.requestAnimationFrame(tick);
       };
       frame = window.requestAnimationFrame(tick);
@@ -2728,7 +2829,6 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
 
     useEffect(() => {
       return () => {
-        clearTimeoutRef(layoutCoolingTimeoutRef);
         if (fullGraphLayoutSettleTimeoutRef.current !== null) {
           window.clearTimeout(fullGraphLayoutSettleTimeoutRef.current);
           fullGraphLayoutSettleTimeoutRef.current = null;
@@ -2741,6 +2841,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
           window.cancelAnimationFrame(layoutSyncFrameRef.current);
           layoutSyncFrameRef.current = null;
         }
+        layoutGlideRef.current = null;
         fa2Ref.current?.kill();
         fa2Ref.current = null;
       };

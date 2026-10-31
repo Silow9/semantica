@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 import { en, zh, type MessageKey } from "./messages";
 
@@ -41,6 +41,9 @@ export function getLocale(): Locale {
 }
 
 export function setLocale(locale: Locale) {
+  if (locale === currentLocale) {
+    return;
+  }
   currentLocale = locale;
   try {
     window.localStorage.setItem(STORAGE_KEY, locale);
@@ -71,16 +74,61 @@ export function t(key: MessageKey, vars?: Record<string, string | number>): stri
   return text;
 }
 
+export interface LocalizedMessage {
+  key: MessageKey;
+  vars?: Record<string, string | number | LocalizedMessage>;
+}
+
+export function message(key: MessageKey, vars?: LocalizedMessage["vars"]): LocalizedMessage {
+  return vars ? { key, vars } : { key };
+}
+
+export function formatMessage(value: LocalizedMessage): string {
+  if (!value.vars) {
+    return t(value.key);
+  }
+  const vars: Record<string, string | number> = {};
+  for (const [name, item] of Object.entries(value.vars)) {
+    vars[name] = typeof item === "object" ? formatMessage(item) : item;
+  }
+  return t(value.key, vars);
+}
+
+export function sameMessage(a: LocalizedMessage | undefined, b: LocalizedMessage | undefined): boolean {
+  if (a === b) {
+    return true;
+  }
+  if (!a || !b || a.key !== b.key) {
+    return false;
+  }
+  const aVars = a.vars ?? {};
+  const bVars = b.vars ?? {};
+  const names = Object.keys(aVars);
+  if (names.length !== Object.keys(bVars).length) {
+    return false;
+  }
+  return names.every((name) => {
+    const left = aVars[name];
+    const right = bVars[name];
+    if (typeof left === "object" && typeof right === "object") {
+      return sameMessage(left, right);
+    }
+    return left === right;
+  });
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function getLocaleSnapshot(): Locale {
+  return currentLocale;
+}
+
 export function useI18n() {
-  const [, setVersion] = useState(0);
-
-  useEffect(() => {
-    const listener = () => setVersion((version) => version + 1);
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
-  }, []);
-
-  return { locale: currentLocale, setLocale, t };
+  const locale = useSyncExternalStore(subscribe, getLocaleSnapshot, getLocaleSnapshot);
+  return { locale, setLocale, t };
 }

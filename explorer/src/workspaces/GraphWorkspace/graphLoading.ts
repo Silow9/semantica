@@ -1,4 +1,4 @@
-import { t } from "../../i18n";
+import { t, type LocalizedMessage } from "../../i18n";
 import type { MessageKey } from "../../i18n/messages";
 import type { GraphLoadPhase, GraphLoadProgress, GraphLoadProgressKind, GraphLayoutSource, GraphLayoutState } from "./types";
 
@@ -60,7 +60,7 @@ export function getGraphLoadStageLabel(phase: Exclude<GraphLoadPhase, "ready">):
 
 export function createGraphLoadProgress(input: {
   phase: GraphLoadPhase;
-  message: string;
+  message: LocalizedMessage;
   progressKind: GraphLoadProgressKind;
   loaded?: number | null;
   total?: number | null;
@@ -76,7 +76,6 @@ export function createGraphLoadProgress(input: {
 
   return {
     phase: input.phase,
-    title: getGraphLoadTitle(input.phase),
     message: input.message,
     progressKind: input.progressKind,
     loaded: input.loaded ?? null,
