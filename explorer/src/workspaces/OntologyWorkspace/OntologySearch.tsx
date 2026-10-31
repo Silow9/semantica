@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
 import {
   AlertCircle,
   BookOpen,
@@ -44,16 +46,17 @@ const ENTITY_TYPE_COLORS: Record<string, string> = {
   unknown: "#6a7f97",
 };
 
-const ENTITY_TYPE_LABELS: Record<string, string> = {
-  class: "Class",
-  property: "Property",
-  individual: "Individual",
-  concept: "Concept",
-  scheme: "Scheme",
-  unknown: "Entity",
+const ENTITY_TYPE_KEYS: Record<string, MessageKey> = {
+  class: "search.class",
+  property: "search.property",
+  individual: "search.individual",
+  concept: "search.concept",
+  scheme: "search.scheme",
+  unknown: "search.entity",
 };
 
 function TypeBadge({ entityType }: { entityType: string }) {
+  const { t } = useI18n();
   const color = ENTITY_TYPE_COLORS[entityType] || ENTITY_TYPE_COLORS.unknown;
   return (
     <span
@@ -70,7 +73,7 @@ function TypeBadge({ entityType }: { entityType: string }) {
         flexShrink: 0,
       }}
     >
-      {ENTITY_TYPE_LABELS[entityType] || entityType}
+      {t(ENTITY_TYPE_KEYS[entityType] ?? "search.entity")}
     </span>
   );
 }
@@ -308,6 +311,7 @@ function DetailSection({ label, children }: { label: string; children: React.Rea
 // ---------------------------------------------------------------------------
 
 export function OntologySearch() {
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [entityType, setEntityType] = useState<string>("all");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -350,7 +354,7 @@ export function OntologySearch() {
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search classes, properties, concepts…"
+            placeholder={t("search.placeholder")}
             style={searchInputStyle}
           />
           {searching && <Loader2 size={13} color="#4aa3ff" style={{ animation: "spin 0.8s linear infinite", flexShrink: 0 }} />}
@@ -362,16 +366,16 @@ export function OntologySearch() {
         </div>
 
         <div style={typeFilterStyle}>
-          {(["all", "class", "property", "individual", "concept", "scheme"] as const).map((t) => (
+          {(["all", "class", "property", "individual", "concept", "scheme"] as const).map((kind) => (
             <button
-              key={t}
-              onClick={() => setEntityType(t)}
+              key={kind}
+              onClick={() => setEntityType(kind)}
               style={{
                 ...typeFilterBtnBase,
-                ...(entityType === t ? typeFilterBtnActive : typeFilterBtnIdle),
+                ...(entityType === kind ? typeFilterBtnActive : typeFilterBtnIdle),
               }}
             >
-              {t === "all" ? "All" : ENTITY_TYPE_LABELS[t] || t}
+              {kind === "all" ? t("onto.all") : t(ENTITY_TYPE_KEYS[kind] ?? "search.entity")}
             </button>
           ))}
         </div>
@@ -384,14 +388,14 @@ export function OntologySearch() {
             <div style={hintStyle}>
               <Search size={20} color="rgba(74,163,255,0.2)" />
               <span style={{ color: "#6a7f97", fontSize: 12, marginTop: 8 }}>
-                Type to search across all loaded ontologies
+                {t("search.hint")}
               </span>
             </div>
           )}
 
           {query && results.length === 0 && !searching && (
             <div style={hintStyle}>
-              <span style={{ color: "#6a7f97", fontSize: 12 }}>No results for "{query}"</span>
+              <span style={{ color: "#6a7f97", fontSize: 12 }}>{t("search.none", { query })}</span>
             </div>
           )}
 

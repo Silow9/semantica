@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useI18n } from "../../i18n";
 import {
   AlertCircle,
   CheckCircle2,
@@ -173,6 +174,7 @@ function PreviewRow({
 // ---------------------------------------------------------------------------
 
 function URLImportPanel({ onLoaded }: { onLoaded: () => void }) {
+  const { t } = useI18n();
   const [url, setUrl] = useState("");
   const [format, setFormat] = useState("");
   const [customName, setCustomName] = useState("");
@@ -316,7 +318,7 @@ function URLImportPanel({ onLoaded }: { onLoaded: () => void }) {
       {loadState === "success" && (
         <div style={successBoxStyle}>
           <CheckCircle2 size={13} />
-          <span>Ontology loaded successfully</span>
+          <span>{t("loader.loaded")}</span>
         </div>
       )}
 
@@ -336,12 +338,12 @@ function URLImportPanel({ onLoaded }: { onLoaded: () => void }) {
           {loadState === "loading" ? (
             <>
               <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />
-              Loading…
+              {t("loader.loading")}
             </>
           ) : (
             <>
               <Globe size={13} />
-              Load Ontology
+              {t("onto.load")}
             </>
           )}
         </button>
@@ -355,6 +357,7 @@ function URLImportPanel({ onLoaded }: { onLoaded: () => void }) {
 // ---------------------------------------------------------------------------
 
 function FileUploadPanel({ onLoaded }: { onLoaded: () => void }) {
+  const { t } = useI18n();
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState("");
   const [content, setContent] = useState("");
@@ -430,7 +433,7 @@ function FileUploadPanel({ onLoaded }: { onLoaded: () => void }) {
         ) : (
           <>
             <div style={{ color: "#8fa8c6", fontSize: 13 }}>
-              Drop a file here or <span style={{ color: "#4aa3ff" }}>browse</span>
+              {t("loader.drop")} <span style={{ color: "#4aa3ff" }}>{t("loader.browse")}</span>
             </div>
             <div style={{ color: "#5a7a9a", fontSize: 11 }}>
               .ttl · .rdf · .owl · .xml · .nt · .jsonld · .json · .n3
@@ -464,7 +467,7 @@ function FileUploadPanel({ onLoaded }: { onLoaded: () => void }) {
       {loadState === "success" && (
         <div style={successBoxStyle}>
           <CheckCircle2 size={13} />
-          <span>Ontology loaded successfully — {fileName}</span>
+          <span>{t("loader.loaded")} — {fileName}</span>
         </div>
       )}
 
@@ -484,7 +487,7 @@ function FileUploadPanel({ onLoaded }: { onLoaded: () => void }) {
           {loadState === "loading" ? (
             <>
               <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />
-              Loading…
+              {t("loader.loading")}
             </>
           ) : (
             <>
@@ -503,6 +506,7 @@ function FileUploadPanel({ onLoaded }: { onLoaded: () => void }) {
 // ---------------------------------------------------------------------------
 
 function CreateNewPanel({ onLoaded }: { onLoaded: () => void }) {
+  const { t } = useI18n();
   const [createMode, setCreateMode] = useState<CreateMode>("scratch");
   const [namespace, setNamespace] = useState("https://example.org/ontology/");
   const [name, setName] = useState("");
@@ -557,7 +561,7 @@ function CreateNewPanel({ onLoaded }: { onLoaded: () => void }) {
               ...(createMode === m ? modeTabActive : modeTabIdle),
             }}
           >
-            {m === "scratch" ? "From Scratch" : m === "data" ? "From Data" : "From Text"}
+            {m === "scratch" ? t("loader.scratch") : m === "data" ? t("loader.fromData") : t("loader.fromText")}
           </button>
         ))}
       </div>
@@ -603,7 +607,7 @@ function CreateNewPanel({ onLoaded }: { onLoaded: () => void }) {
       {createState === "success" && (
         <div style={successBoxStyle}>
           <CheckCircle2 size={13} />
-          <span>Ontology created and opened in the Registry</span>
+          <span>{t("loader.created")}</span>
         </div>
       )}
 
@@ -628,7 +632,7 @@ function CreateNewPanel({ onLoaded }: { onLoaded: () => void }) {
           ) : (
             <>
               <Plus size={13} />
-              Create Ontology
+              {t("loader.createAction")}
             </>
           )}
         </button>
@@ -642,6 +646,7 @@ function CreateNewPanel({ onLoaded }: { onLoaded: () => void }) {
 // ---------------------------------------------------------------------------
 
 export function OntologyLoader({ onLoaded, onClose }: LoaderProps) {
+  const { t } = useI18n();
   const [mode, setMode] = useState<LoaderMode>("url");
 
   return (
@@ -649,9 +654,9 @@ export function OntologyLoader({ onLoaded, onClose }: LoaderProps) {
       <div style={modalStyle}>
         <div style={modalHeaderStyle}>
           <div>
-            <div style={{ color: "#ebf3ff", fontSize: 16, fontWeight: 800 }}>Load Ontology</div>
+            <div style={{ color: "#ebf3ff", fontSize: 16, fontWeight: 800 }}>{t("onto.load")}</div>
             <div style={{ color: "#8fa8c6", fontSize: 12, marginTop: 2 }}>
-              Import from URL, upload a file, or create a new ontology
+              {t("loader.subtitle")}
             </div>
           </div>
           <button onClick={onClose} style={closeIconBtnStyle}>
@@ -670,11 +675,11 @@ export function OntologyLoader({ onLoaded, onClose }: LoaderProps) {
               }}
             >
               {m === "url" ? (
-                <><Globe size={12} /> URL Import</>
+                <><Globe size={12} /> {t("loader.url")}</>
               ) : m === "file" ? (
-                <><FileUp size={12} /> File Upload</>
+                <><FileUp size={12} /> {t("loader.file")}</>
               ) : (
-                <><Plus size={12} /> Create New</>
+                <><Plus size={12} /> {t("loader.create")}</>
               )}
             </button>
           ))}

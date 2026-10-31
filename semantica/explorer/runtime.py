@@ -24,6 +24,9 @@ def install_mutation_bridge(app: FastAPI, session: GraphSession) -> None:
         session.handle_graph_mutation(event_type, entity_id, payload)
         if callable(previous_callback):
             previous_callback(event_type, entity_id, payload)
+        library = getattr(app.state, "graph_library", None)
+        if library is not None and str(event_type).upper() != "RELOAD_GRAPH":
+            library.mark_dirty()
         loop = getattr(app.state, "event_loop", None)
         manager = getattr(app.state, "ws_manager", None)
         if loop is None or manager is None or loop.is_closed():

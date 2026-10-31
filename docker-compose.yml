@@ -3,6 +3,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Snapshot of the Python libraries already installed locally.
+        # Rebuilds copy from this image instead of downloading them again.
+        # First build on a machine without that snapshot:
+        #   $env:REUSE_DEPS_IMAGE = "python:3.13-slim@sha256:8d9d0b8bcf6506481eae4907c18f5e3e7902e629f5f6d684f9e7c32e85e3ddf0"
+        REUSE_DEPS_IMAGE: ${REUSE_DEPS_IMAGE:-semantica-python-deps:local}
     image: semantica-knowledge-explorer:latest
     environment:
       FALKORDB_HOST: falkordb
@@ -12,7 +18,24 @@ services:
       # (503) until this is set. Generate one with `openssl rand -hex 32`.
       SEMANTICA_API_KEY: ${SEMANTICA_API_KEY:-}
       # Trusted local-only setups only: bypasses the API key entirely.
-      SEMANTICA_ALLOW_ANONYMOUS: ${SEMANTICA_ALLOW_ANONYMOUS:-false}
+      SEMANTICA_ALLOW_ANONYMOUS: ${SEMANTICA_ALLOW_ANONYMOUS:-true}
+      # Defaults for the OpenAI-compatible model endpoints. Values saved on the
+      # Explorer "Models" page override these. Reach host services through
+      # host.docker.internal, e.g. http://host.docker.internal:8000/v1.
+      SEMANTICA_LLM_BASE_URL: ${SEMANTICA_LLM_BASE_URL:-}
+      SEMANTICA_LLM_MODEL: ${SEMANTICA_LLM_MODEL:-}
+      SEMANTICA_LLM_API_KEY: ${SEMANTICA_LLM_API_KEY:-}
+      SEMANTICA_EMBEDDING_BASE_URL: ${SEMANTICA_EMBEDDING_BASE_URL:-}
+      SEMANTICA_EMBEDDING_MODEL: ${SEMANTICA_EMBEDDING_MODEL:-}
+      SEMANTICA_EMBEDDING_API_KEY: ${SEMANTICA_EMBEDDING_API_KEY:-}
+      SEMANTICA_RERANK_BASE_URL: ${SEMANTICA_RERANK_BASE_URL:-}
+      SEMANTICA_RERANK_MODEL: ${SEMANTICA_RERANK_MODEL:-}
+      SEMANTICA_RERANK_API_KEY: ${SEMANTICA_RERANK_API_KEY:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Uploaded documents and Models-page settings survive image rebuilds.
+      - explorer_data:/app/data
     depends_on:
       falkordb:
         condition: service_started
@@ -38,3 +61,4 @@ networks:
 
 volumes:
   falkordb_data:
+  explorer_data:

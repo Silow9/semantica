@@ -14,6 +14,7 @@ import {
   ToggleLeft,
   ToggleRight,
 } from "lucide-react";
+import { useI18n } from "../../i18n";
 import { OntologyLoader } from "./OntologyLoader";
 import { OntologySearch } from "./OntologySearch";
 import { SKOSVocabularyManager } from "./SKOSVocabularyManager";
@@ -116,6 +117,7 @@ function RegistryRow({
   onRefresh: (uri: string) => void;
   onRemove: (uri: string) => void;
 }) {
+  const { t } = useI18n();
   const [busyToggle, setBusyToggle] = useState(false);
   const [busyRefresh, setBusyRefresh] = useState(false);
   const [busyRemove, setBusyRemove] = useState(false);
@@ -162,7 +164,7 @@ function RegistryRow({
           <StatusBadge status={entry.status} />
           <FormatBadge format={entry.format} />
           {!entry.enabled && (
-            <span style={disabledBadgeStyle}>Disabled</span>
+            <span style={disabledBadgeStyle}>{t("onto.disabled")}</span>
           )}
         </div>
         <div style={rowUriStyle}>{entry.uri}</div>
@@ -239,6 +241,7 @@ function RegistryRow({
 // ---------------------------------------------------------------------------
 
 export function OntologyManager() {
+  const { t } = useI18n();
   const [entries, setEntries] = useState<OntologyEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQ, setSearchQ] = useState("");
@@ -383,7 +386,7 @@ export function OntologyManager() {
             <input
               value={searchQ}
               onChange={(e) => setSearchQ(e.target.value)}
-              placeholder="Search ontologies by name, URI, or namespace…"
+              placeholder={t("onto.search")}
               style={searchInputStyle}
             />
           </div>
@@ -398,7 +401,7 @@ export function OntologyManager() {
                   ...(statusFilter === f ? filterPillActive : filterPillIdle),
                 }}
               >
-                {f === "all" ? "All" : f.toUpperCase()}
+                {f === "all" ? t("onto.all") : f.toUpperCase()}
               </button>
             ))}
           </div>
@@ -412,14 +415,14 @@ export function OntologyManager() {
               }}
             >
               <Search size={13} />
-              Entity Search
+              {t("onto.entitySearch")}
             </button>
             <button
               onClick={() => setShowLoader(true)}
               style={primaryToolBtnStyle}
             >
               <Plus size={13} />
-              Load Ontology
+              {t("onto.load")}
             </button>
           </div>
         </div>
@@ -455,23 +458,21 @@ export function OntologyManager() {
             {loading ? (
               <div style={centerStyle}>
                 <Loader2 size={22} color="#4aa3ff" style={{ animation: "spin 1s linear infinite" }} />
-                <span style={{ color: "#8fa8c6", fontSize: 13, marginTop: 10 }}>Loading registry…</span>
+                <span style={{ color: "#8fa8c6", fontSize: 13, marginTop: 10 }}>{t("onto.loading")}</span>
               </div>
             ) : filteredEntries.length === 0 ? (
               <div style={emptyStateStyle}>
                 <BookMarked size={36} color="rgba(74,163,255,0.18)" />
                 <div style={{ color: "#8fa8c6", fontSize: 14, fontWeight: 600, marginTop: 14 }}>
-                  {searchQ ? "No ontologies match your search" : "No ontologies loaded yet"}
+                  {searchQ ? t("onto.noMatch") : t("onto.none")}
                 </div>
                 <div style={{ color: "#6a7f97", fontSize: 12, marginTop: 6, textAlign: "center", maxWidth: 300, lineHeight: 1.6 }}>
-                  {searchQ
-                    ? "Try a different search term or clear the filter."
-                    : <>Import from a URL, upload a file, or create a new ontology to get started. Click <strong style={{ color: "#7fd0ff" }}>Load Ontology</strong> above.</>}
+                  {searchQ ? t("onto.tryOther") : t("onto.start")}
                 </div>
                 {!searchQ && (
                   <button onClick={() => setShowLoader(true)} style={{ ...primaryToolBtnStyle, marginTop: 18 }}>
                     <Plus size={13} />
-                    Load Ontology
+                    {t("onto.load")}
                   </button>
                 )}
               </div>
@@ -479,7 +480,7 @@ export function OntologyManager() {
               <div style={listStyle}>
                 <div style={listHeaderStyle}>
                   <span style={listHeaderTextStyle}>
-                    {filteredEntries.length} ontolog{filteredEntries.length === 1 ? "y" : "ies"}
+                    {t("onto.count", { count: filteredEntries.length })}
                   </span>
                 </div>
                 {filteredEntries.map((entry) => (
@@ -501,7 +502,7 @@ export function OntologyManager() {
           {rightPanel === "search" && (
             <div style={rightPanelStyle}>
               <div style={rightPanelHeaderStyle}>
-                <span style={rightPanelTitleStyle}>Entity Search</span>
+                <span style={rightPanelTitleStyle}>{t("onto.entitySearch")}</span>
                 <button onClick={() => setRightPanel("none")} style={closePanelBtnStyle}>×</button>
               </div>
               <OntologySearch />

@@ -1,0 +1,14 @@
+Document parsing embedded in the Semantica Explorer follows the RAGFlow
+parser dispatch and the {text, doc_type_kwd} item contract from
+
+    ragflow/internal/parser/parser
+
+Copyright 2026 The InfiniFlow Authors.
+
+Licensed under the Apache License, Version 2.0. The original license is
+in ragflow/LICENSE.
+
+The native DeepDOC engines (pdfium / office_oxide) are not linked into
+this Python process. PDF text uses pdfplumber from the explorer extra.
+DOCX and XLSX are read from their OOXML packages. Legacy .doc, .xls,
+and .ppt stay unsupported without those native engines.

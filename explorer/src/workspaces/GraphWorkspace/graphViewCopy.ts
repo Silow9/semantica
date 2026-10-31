@@ -1,15 +1,5 @@
+import { t } from "../../i18n";
 import type { FocusedUnavailableReason, GroupedViewUnavailableReason } from "./types";
-
-const GROUPED_VIEW_COPY = {
-  "communities-undetected": "Grouped view is unavailable until communities can be detected.",
-  "community-nodes-missing": "Grouped view is unavailable because no community nodes could be created.",
-} as const;
-
-const FOCUSED_MODE_COPY = {
-  "no-selection": "Select a node to inspect in Focused mode.",
-  "grouped-unresolvable": "Focused mode is unavailable for this grouped selection.",
-  "not-in-graph": "Selected item is not available in the current graph.",
-} as const;
 
 export function groupedViewReasonText(
   reason: GroupedViewUnavailableReason | null | undefined,
@@ -20,13 +10,13 @@ export function groupedViewReasonText(
 
   switch (reason.code) {
     case "communities-undetected":
-      return GROUPED_VIEW_COPY["communities-undetected"];
+      return t("graphView.communitiesUndetected");
     case "community-nodes-missing":
-      return GROUPED_VIEW_COPY["community-nodes-missing"];
+      return t("graphView.communityNodesMissing");
     case "invalid-community-layout":
-      return `Grouped node ${reason.nodeId} has invalid coordinates.`;
+      return t("graphView.invalidLayout", { nodeId: reason.nodeId });
     case "missing-grouped-node":
-      return `Grouped edge ${reason.edgeId} references a missing grouped node.`;
+      return t("graphView.missingNode", { edgeId: reason.edgeId });
   }
 }
 
@@ -37,5 +27,12 @@ export function focusedUnavailableReasonText(
     return null;
   }
 
-  return FOCUSED_MODE_COPY[reason.code];
+  switch (reason.code) {
+    case "no-selection":
+      return t("graphView.noSelection");
+    case "grouped-unresolvable":
+      return t("graphView.groupedUnresolvable");
+    case "not-in-graph":
+      return t("graphView.notInGraph");
+  }
 }

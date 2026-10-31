@@ -2,10 +2,12 @@ import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { UploadCloud, Download, FileJson, FileText, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { logEvent } from "../../store/registryStore";
+import { useI18n } from "../../i18n";
 
 interface Toast { id: number; type: "success" | "error"; text: string }
 
 export function ImportExportWorkspace() {
+  const { t } = useI18n();
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [exportFormat, setExportFormat] = useState<"json" | "csv">("json");
@@ -79,8 +81,8 @@ export function ImportExportWorkspace() {
             <UploadCloud size={20} />
           </div>
           <div>
-            <h2 className="ws-title" style={{ fontSize: 18 }}>Import &amp; Export</h2>
-            <div className="ws-body" style={{ marginTop: 2 }}>Ingest new graph datasets or extract the current knowledge base.</div>
+            <h2 className="ws-title" style={{ fontSize: 18 }}>{t("import.title")}</h2>
+            <div className="ws-body" style={{ marginTop: 2 }}>{t("import.subtitle")}</div>
           </div>
         </div>
 
@@ -89,7 +91,7 @@ export function ImportExportWorkspace() {
           <div className="ws-card" style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <UploadCloud size={16} color="var(--ws-accent)" />
-              <div style={{ color: "var(--ws-text)", fontWeight: 700, fontSize: 14 }}>Import Entities &amp; Relations</div>
+              <div style={{ color: "var(--ws-text)", fontWeight: 700, fontSize: 14 }}>{t("import.entities")}</div>
             </div>
 
             {/* Dropzone */}
@@ -114,14 +116,14 @@ export function ImportExportWorkspace() {
                 <>
                   {file.name.endsWith(".json") ? <FileJson size={40} color="#4cc38a" /> : <FileText size={40} color="#4cc38a" />}
                   <div style={{ color: "var(--ws-text)", fontWeight: 700 }}>{file.name}</div>
-                  <div className="ws-body" style={{ fontSize: 11 }}>{(file.size / 1024).toFixed(1)} KB — click to replace</div>
+                  <div className="ws-body" style={{ fontSize: 11 }}>{t("import.replace", { size: (file.size / 1024).toFixed(1) })}</div>
                 </>
               ) : (
                 <>
                   <UploadCloud size={36} color="var(--ws-accent)" style={{ opacity: 0.7 }} />
-                  <div style={{ color: "var(--ws-text)", fontWeight: 600 }}>Drag &amp; drop or click to browse</div>
+                  <div style={{ color: "var(--ws-text)", fontWeight: 600 }}>{t("import.drop")}</div>
                   <div className="ws-pill ws-pill--mono">.json</div>
-                  <span style={{ color: "var(--ws-text-dim)", fontSize: 11 }}>or</span>
+                  <span style={{ color: "var(--ws-text-dim)", fontSize: 11 }}>{t("import.or")}</span>
                   <div className="ws-pill ws-pill--mono">.csv</div>
                 </>
               )}
@@ -133,7 +135,7 @@ export function ImportExportWorkspace() {
               disabled={!file || isUploading}
               style={{ width: "100%", justifyContent: "center" }}
             >
-              {isUploading ? <><Loader2 size={15} className="ws-spin" />Uploading…</> : <><UploadCloud size={15} />Upload to Graph</>}
+              {isUploading ? <><Loader2 size={15} className="ws-spin" />{t("import.uploading")}</> : <><UploadCloud size={15} />{t("import.upload")}</>}
             </button>
           </div>
 
@@ -141,11 +143,11 @@ export function ImportExportWorkspace() {
           <div className="ws-card" style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Download size={16} color="var(--ws-purple)" />
-              <div style={{ color: "var(--ws-text)", fontWeight: 700, fontSize: 14 }}>Export Graph Snapshot</div>
+              <div style={{ color: "var(--ws-text)", fontWeight: 700, fontSize: 14 }}>{t("import.exportTitle")}</div>
             </div>
 
             <div>
-              <label className="ws-label">Format</label>
+              <label className="ws-label">{t("import.format")}</label>
               <div style={{ display: "flex", gap: 8 }}>
                 {(["json", "csv"] as const).map((fmt) => (
                   <button
@@ -162,11 +164,9 @@ export function ImportExportWorkspace() {
             </div>
 
             <div style={{ flex: 1, padding: "14px 16px", borderRadius: "var(--ws-radius-sm)", background: "rgba(0,0,0,0.22)", border: "1px solid var(--ws-border)" }}>
-              <div style={{ color: "var(--ws-text-muted)", fontWeight: 700, fontSize: 12, marginBottom: 6 }}>What's included</div>
+              <div style={{ color: "var(--ws-text-muted)", fontWeight: 700, fontSize: 12, marginBottom: 6 }}>{t("import.included")}</div>
               <div className="ws-body" style={{ fontSize: 12 }}>
-                {exportFormat === "json"
-                  ? "Full graph snapshot: all node properties, edge weights, entity metadata and semantic groups in a standardized JSON payload."
-                  : "Flattened CSV: nodes and edges as rows. Complex nested properties are stringified. Best for spreadsheet analysis."}
+                {exportFormat === "json" ? t("import.jsonHelp") : t("import.csvHelp")}
               </div>
             </div>
 
@@ -176,7 +176,7 @@ export function ImportExportWorkspace() {
               disabled={isExporting}
               style={{ width: "100%", justifyContent: "center", background: "var(--ws-purple-soft)", borderColor: "rgba(192,132,252,0.3)", color: "#d8b4fe" }}
             >
-              {isExporting ? <><Loader2 size={15} className="ws-spin" />Preparing…</> : <><Download size={15} />Download Export</>}
+              {isExporting ? <><Loader2 size={15} className="ws-spin" />{t("import.preparing")}</> : <><Download size={15} />{t("import.download")}</>}
             </button>
           </div>
         </div>

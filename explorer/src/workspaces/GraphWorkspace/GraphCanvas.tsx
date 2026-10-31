@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useCallback, forwardRef, useImperativeHandle, useState, type ReactNode } from "react";
 import Sigma from "sigma";
 import FA2Layout from "graphology-layout-forceatlas2/worker";
+import { t, useI18n } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
 import { graph, type EdgeAttributes, type NodeAttributes } from "../../store/graphStore";
+import { translateRelationType } from "./graphTermLabels";
 import type { GraphBehavior, GraphBehaviorContext, GraphBehaviorActionRequest } from "./behaviors/types";
 import { hoverActivationBehavior } from "./behaviors/hoverActivationBehavior";
 import { clickSelectionBehavior } from "./behaviors/clickSelectionBehavior";
@@ -138,6 +141,68 @@ const FA2_SETTINGS = {
 };
 
 const FULL_GRAPH_LAYOUT_SETTLE_MS = 4_500;
+// ForceAtlas2 keeps its step size until it is stopped, so nodes near equilibrium
+// overshoot back and forth. The tail of the run switches to a heavily damped copy.
+const LAYOUT_COOLING_START_RATIO = 0.55;
+const LAYOUT_COOLING_SLOWDOWN_FACTOR = 5;
+// Sigma re-normalizes to the node extent on every refresh; following the extent
+// with a low-pass filter keeps outlier swings from zooming the whole scene.
+const LAYOUT_FRAME_SMOOTHING = 0.08;
+const LAYOUT_FRAME_RELEASE_SMOOTHING = 0.2;
+const LAYOUT_FRAME_RELEASE_TOLERANCE = 0.002;
+
+function withCoolingSettings<T extends { settings: { slowDown: number } }>(params: T): T {
+  return {
+    ...params,
+    settings: {
+      ...params.settings,
+      slowDown: params.settings.slowDown * LAYOUT_COOLING_SLOWDOWN_FACTOR,
+    },
+  };
+}
+
+function clearTimeoutRef(ref: { current: number | null }) {
+  if (ref.current !== null) {
+    window.clearTimeout(ref.current);
+    ref.current = null;
+  }
+}
+
+function measureGraphExtent(target: GraphSceneGraph): SigmaCustomBBox | null {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  target.forEachNode((_node, attrs) => {
+    const x = Number(attrs.x);
+    const y = Number(attrs.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return;
+    }
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  });
+  return Number.isFinite(minX) ? { x: [minX, maxX], y: [minY, maxY] } : null;
+}
+
+function lerpBBox(from: SigmaCustomBBox, to: SigmaCustomBBox, amount: number): SigmaCustomBBox {
+  const mix = (a: number, b: number) => a + (b - a) * amount;
+  return {
+    x: [mix(from.x[0], to.x[0]), mix(from.x[1], to.x[1])],
+    y: [mix(from.y[0], to.y[0]), mix(from.y[1], to.y[1])],
+  };
+}
+
+function isBBoxClose(left: SigmaCustomBBox, right: SigmaCustomBBox): boolean {
+  const span = Math.max(right.x[1] - right.x[0], right.y[1] - right.y[0], 1e-6);
+  const tolerance = span * LAYOUT_FRAME_RELEASE_TOLERANCE;
+  return Math.abs(left.x[0] - right.x[0]) <= tolerance
+    && Math.abs(left.x[1] - right.x[1]) <= tolerance
+    && Math.abs(left.y[0] - right.y[0]) <= tolerance
+    && Math.abs(left.y[1] - right.y[1]) <= tolerance;
+}
 
 const GROUPED_FA2_SETTINGS = {
   iterations: GRAPH_THEME.grouped.layout.iterations,
@@ -169,6 +234,8 @@ const SIGMA_SETTINGS = {
   renderEdgeLabels: true,
   labelDensity: 0.7,
   labelGridCellSize: 140,
+  labelFont: "\"IBM Plex Sans\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+  edgeLabelFont: "\"IBM Plex Sans\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
   zIndex: true,
   minCameraRatio: 0.04,
   maxCameraRatio: 8,
@@ -537,6 +604,16 @@ function collectPathSegments(
   return segments;
 }
 
+const ZOOM_TIER_LABEL_KEYS: Record<GraphZoomTier, MessageKey> = {
+  overview: "effects.tier.overview",
+  structure: "effects.tier.structure",
+  inspection: "effects.tier.inspection",
+};
+
+function requiresZoomTier(tier: GraphZoomTier) {
+  return t("effects.reason.requires", { tier: t(ZOOM_TIER_LABEL_KEYS[tier]) });
+}
+
 function buildEffectAvailability(
   interactionState: GraphInteractionState,
   effectsState: GraphEffectsState,
@@ -565,197 +642,199 @@ function buildEffectAvailability(
   const regionsTierReady = zoomTierAtLeast(interactionState.zoomTier, GRAPH_THEME.effects.semanticRegions.minZoomTier);
   const contoursTierReady = zoomTierAtLeast(interactionState.zoomTier, GRAPH_THEME.effects.contours.minZoomTier);
   const hasPrimaryNode = Boolean(interactionState.hoveredNodeId || interactionState.selectedNodeId);
-  const layoutReason = "Layout is still settling";
+  const layoutReason = t("effects.reason.layoutSettling");
+  const disabledReason = t("effects.reason.disabledToggle");
+  const readyReason = t("effects.reason.ready");
 
   const pathPulse = !effectsState.pathPulseEnabled
-    ? { enabled: false, available: false, reason: "Disabled by toggle" }
+    ? { enabled: false, available: false, reason: disabledReason }
     : isLayoutRunning
       ? { enabled: true, available: false, reason: layoutReason }
     : !hasActivePath
-      ? { enabled: true, available: false, reason: "No active path" }
+      ? { enabled: true, available: false, reason: t("effects.reason.noActivePath") }
       : !pulseTierReady
         ? {
             enabled: true,
             available: false,
-            reason: "Disabled by zoom tier",
-            detail: `Requires ${GRAPH_THEME.effects.pathPulse.minZoomTier}`,
+            reason: t("effects.reason.zoomTier"),
+            detail: requiresZoomTier(GRAPH_THEME.effects.pathPulse.minZoomTier),
           }
         : visiblePathSegments === 0
-          ? { enabled: true, available: false, reason: "Path is off-screen" }
+          ? { enabled: true, available: false, reason: t("effects.reason.offscreen") }
           : visiblePathSegments > GRAPH_THEME.effects.pathPulse.maxSegments
             ? {
                 enabled: true,
                 available: false,
-                reason: "Disabled by path size cap",
-                detail: `${visiblePathSegments} visible segments`,
+                reason: t("effects.reason.pathCap"),
+                detail: t("effects.reason.visibleSegments", { count: visiblePathSegments }),
                 visibleSegments: visiblePathSegments,
                 segmentCap: GRAPH_THEME.effects.pathPulse.maxSegments,
               }
             : {
                 enabled: true,
                 available: true,
-                reason: "Ready",
+                reason: readyReason,
                 visibleSegments: visiblePathSegments,
                 segmentCap: GRAPH_THEME.effects.pathPulse.maxSegments,
               };
 
   const pathFlow = !effectsState.pathFlowEnabled
-    ? { enabled: false, available: false, reason: "Disabled by toggle" }
+    ? { enabled: false, available: false, reason: disabledReason }
     : isLayoutRunning
       ? { enabled: true, available: false, reason: layoutReason }
     : !hasActivePath
-      ? { enabled: true, available: false, reason: "No active path" }
+      ? { enabled: true, available: false, reason: t("effects.reason.noActivePath") }
       : !flowTierReady
         ? {
             enabled: true,
             available: false,
-            reason: "Disabled by zoom tier",
-            detail: `Requires ${GRAPH_THEME.effects.pathFlow.minZoomTier}`,
+            reason: t("effects.reason.zoomTier"),
+            detail: requiresZoomTier(GRAPH_THEME.effects.pathFlow.minZoomTier),
           }
         : visiblePathSegments === 0
-          ? { enabled: true, available: false, reason: "Path is off-screen" }
+          ? { enabled: true, available: false, reason: t("effects.reason.offscreen") }
           : visiblePathSegments > GRAPH_THEME.effects.pathFlow.maxSegments
             ? {
                 enabled: true,
                 available: false,
-                reason: "Disabled by path size cap",
-                detail: `${visiblePathSegments} visible segments`,
+                reason: t("effects.reason.pathCap"),
+                detail: t("effects.reason.visibleSegments", { count: visiblePathSegments }),
                 visibleSegments: visiblePathSegments,
                 segmentCap: GRAPH_THEME.effects.pathFlow.maxSegments,
               }
             : {
                 enabled: true,
                 available: true,
-                reason: "Ready",
+                reason: readyReason,
                 visibleSegments: visiblePathSegments,
                 segmentCap: GRAPH_THEME.effects.pathFlow.maxSegments,
               };
 
   const lens = !effectsState.lensEnabled
-    ? { enabled: false, available: false, reason: "Disabled by toggle" }
+    ? { enabled: false, available: false, reason: disabledReason }
     : isLayoutRunning
       ? { enabled: true, available: false, reason: layoutReason }
     : !hasPrimaryNode
-      ? { enabled: true, available: false, reason: "No focal node" }
+      ? { enabled: true, available: false, reason: t("effects.reason.noFocal") }
       : !lensTierReady
         ? {
             enabled: true,
             available: false,
-            reason: "Disabled by zoom tier",
-            detail: `Requires ${GRAPH_THEME.effects.lens.minZoomTier}`,
+            reason: t("effects.reason.zoomTier"),
+            detail: requiresZoomTier(GRAPH_THEME.effects.lens.minZoomTier),
           }
-        : { enabled: true, available: true, reason: "Ready" };
+        : { enabled: true, available: true, reason: readyReason };
 
   const temporalEmphasis = !effectsState.temporalEmphasisEnabled
-    ? { enabled: false, available: false, reason: "Disabled by toggle" }
+    ? { enabled: false, available: false, reason: disabledReason }
     : isLayoutRunning
       ? { enabled: true, available: false, reason: layoutReason }
     : !temporalState?.currentTime
-      ? { enabled: true, available: false, reason: "No temporal focus time" }
+      ? { enabled: true, available: false, reason: t("effects.reason.noTemporal") }
       : !temporalTierReady
         ? {
             enabled: true,
             available: false,
-            reason: "Disabled by zoom tier",
-            detail: `Requires ${GRAPH_THEME.effects.temporalEmphasis.minZoomTier}`,
+            reason: t("effects.reason.zoomTier"),
+            detail: requiresZoomTier(GRAPH_THEME.effects.temporalEmphasis.minZoomTier),
           }
-        : { enabled: true, available: true, reason: "Ready" };
+        : { enabled: true, available: true, reason: readyReason };
 
   const semanticRegions = !effectsState.semanticRegionsEnabled
-    ? { enabled: false, available: false, reason: "Disabled by toggle" }
+    ? { enabled: false, available: false, reason: disabledReason }
     : isLayoutRunning
       ? { enabled: true, available: false, reason: layoutReason }
     : !regionsTierReady
       ? {
           enabled: true,
           available: false,
-          reason: "Disabled by zoom tier",
-          detail: `Requires ${GRAPH_THEME.effects.semanticRegions.minZoomTier}`,
+          reason: t("effects.reason.zoomTier"),
+          detail: requiresZoomTier(GRAPH_THEME.effects.semanticRegions.minZoomTier),
         }
       : !analytics?.semanticRegions.ready
         ? {
             enabled: true,
             available: false,
-            reason: analytics?.semanticRegions.reason ?? "Waiting for semantic region summaries",
+            reason: analytics?.semanticRegions.reason ?? t("effects.reason.waitingRegions"),
           }
         : { enabled: true, available: true, reason: analytics.semanticRegions.reason };
 
   const contours = !effectsState.contoursEnabled
-    ? { enabled: false, available: false, reason: "Disabled by toggle" }
+    ? { enabled: false, available: false, reason: disabledReason }
     : isLayoutRunning
       ? { enabled: true, available: false, reason: layoutReason }
     : !contoursTierReady
       ? {
           enabled: true,
           available: false,
-          reason: "Disabled by zoom tier",
-          detail: `Requires ${GRAPH_THEME.effects.contours.minZoomTier}`,
+          reason: t("effects.reason.zoomTier"),
+          detail: requiresZoomTier(GRAPH_THEME.effects.contours.minZoomTier),
         }
       : !analytics?.centrality.ready
         ? {
             enabled: true,
             available: false,
-            reason: analytics?.centrality.reason ?? "Waiting for centrality ranking",
+            reason: analytics?.centrality.reason ?? t("effects.reason.waitingCentrality"),
           }
         : { enabled: true, available: true, reason: analytics.centrality.reason };
 
   const pathfinding = !effectsState.pathfindingEnabled
-    ? { enabled: false, available: false, reason: "Disabled by toggle" }
+    ? { enabled: false, available: false, reason: disabledReason }
     : !analytics?.directedPath.ready
       ? {
           enabled: true,
           available: false,
-          reason: analytics?.directedPath.reason ?? "Waiting for a traced path",
+          reason: analytics?.directedPath.reason ?? t("effects.reason.waitingPath"),
         }
       : {
           enabled: true,
           available: true,
           reason: analytics.directedPath.verifiedAgainstActivePath
-            ? "Ready · local path matches traced path"
-            : "Ready · local directed path differs from traced path",
+            ? t("effects.reason.pathMatches")
+            : t("effects.reason.pathDiffers"),
         };
 
   const communities = !effectsState.communitiesEnabled
-    ? { enabled: false, available: false, reason: "Disabled by toggle" }
+    ? { enabled: false, available: false, reason: disabledReason }
     : !analytics?.communities.ready
       ? {
           enabled: true,
           available: false,
-          reason: analytics?.communities.reason ?? "Waiting for community summaries",
+          reason: analytics?.communities.reason ?? t("effects.reason.waitingCommunities"),
         }
       : {
           enabled: true,
           available: true,
           reason: analytics.communities.modularity !== null
-            ? `Ready · modularity ${analytics.communities.modularity.toFixed(3)}`
+            ? t("effects.reason.modularity", { value: analytics.communities.modularity.toFixed(3) })
             : analytics.communities.reason,
         };
 
   const centrality = !effectsState.centralityEnabled
-    ? { enabled: false, available: false, reason: "Disabled by toggle" }
+    ? { enabled: false, available: false, reason: disabledReason }
     : !analytics?.centrality.ready
       ? {
           enabled: true,
           available: false,
-          reason: analytics?.centrality.reason ?? "Waiting for centrality ranking",
+          reason: analytics?.centrality.reason ?? t("effects.reason.waitingCentrality"),
         }
       : { enabled: true, available: true, reason: analytics.centrality.reason };
 
   const legend = effectsState.legendEnabled
-    ? { enabled: true, available: true, reason: "Panel enabled" }
-    : { enabled: false, available: false, reason: "Disabled by toggle" };
+    ? { enabled: true, available: true, reason: t("effects.reason.panelEnabled") }
+    : { enabled: false, available: false, reason: disabledReason };
 
   // #1009: edge labels are immediately available once the graph is loaded —
   // they have no async analytics or zoom-tier dependency.
   const edgeLabels = effectsState.edgeLabelsEnabled
-    ? { enabled: true, available: true, reason: "Ready" }
-    : { enabled: false, available: false, reason: "Disabled by toggle" };
+    ? { enabled: true, available: true, reason: readyReason }
+    : { enabled: false, available: false, reason: disabledReason };
 
   const diagnostics = !GRAPH_THEME.effects.diagnostics.enabledInDev
-    ? { enabled: false, available: false, reason: "Disabled in production" }
+    ? { enabled: false, available: false, reason: t("effects.reason.disabledProduction") }
     : effectsState.diagnosticsEnabled
-      ? { enabled: true, available: true, reason: "Ready" }
-      : { enabled: false, available: false, reason: "Disabled by toggle" };
+      ? { enabled: true, available: true, reason: readyReason }
+      : { enabled: false, available: false, reason: disabledReason };
 
   return {
     pathPulse,
@@ -1227,7 +1306,7 @@ function applySceneState(
       // saw, so enabling renderEdgeLabels alone left edges blank.
       // Use || rather than ?? so that an empty-string edgeType (possible
       // when the API returns type: "") does not produce a blank label.
-      label: resolvedStyle.hidden ? undefined : String(attrs.edgeType || data.label || ""),
+      label: resolvedStyle.hidden ? undefined : translateRelationType(String(attrs.edgeType || data.label || "")),
     };
   });
 
@@ -1288,6 +1367,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
     },
     ref,
   ) {
+    const { locale } = useI18n();
     const containerRef = useRef<HTMLDivElement>(null);
     const overlayRef = useRef<HTMLCanvasElement>(null);
     const structureLayerCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1326,6 +1406,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
     const deferredFocusFrameRef = useRef<number | null>(null);
     const fullGraphLayoutSettleTimeoutRef = useRef<number | null>(null);
     const groupedLayoutSettleTimeoutRef = useRef<number | null>(null);
+    const layoutCoolingTimeoutRef = useRef<number | null>(null);
     const reducerWarningStateRef = useRef<{ missingEdges: Set<string>; missingNodes: Set<string> }>({
       missingEdges: new Set<string>(),
       missingNodes: new Set<string>(),
@@ -1976,6 +2057,10 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
     }, [effectsState.edgeLabelsEnabled]);
 
     useEffect(() => {
+      sigmaRef.current?.scheduleRefresh();
+    }, [locale]);
+
+    useEffect(() => {
       return () => {
         const sigma = sigmaRef.current;
         const context = behaviorContextRef.current;
@@ -2457,6 +2542,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
 
       if (!isLayoutRunning) {
         fa2Ref.current?.stop();
+        clearTimeoutRef(layoutCoolingTimeoutRef);
         if (fullGraphLayoutSettleTimeoutRef.current !== null) {
           window.clearTimeout(fullGraphLayoutSettleTimeoutRef.current);
           fullGraphLayoutSettleTimeoutRef.current = null;
@@ -2499,6 +2585,21 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
         window.clearTimeout(fullGraphLayoutSettleTimeoutRef.current);
         fullGraphLayoutSettleTimeoutRef.current = null;
       }
+
+      const layoutParams = usingGroupedOwnedLayout ? GROUPED_FA2_SETTINGS : FA2_SETTINGS;
+      const settleMs = usingGroupedOwnedLayout ? GRAPH_THEME.grouped.layout.settleMs : FULL_GRAPH_LAYOUT_SETTLE_MS;
+      clearTimeoutRef(layoutCoolingTimeoutRef);
+      layoutCoolingTimeoutRef.current = window.setTimeout(() => {
+        layoutCoolingTimeoutRef.current = null;
+        fa2Ref.current?.kill();
+        const coolingLayout = new FA2Layout(
+          layoutTargetGraph,
+          withCoolingSettings(layoutParams),
+        ) as FA2Layout & { __targetKey?: string };
+        coolingLayout.__targetKey = `${targetKey}:cooling`;
+        fa2Ref.current = coolingLayout;
+        coolingLayout.start();
+      }, settleMs * LAYOUT_COOLING_START_RATIO);
 
       if (usingGroupedOwnedLayout) {
         groupedLayoutSettleTimeoutRef.current = window.setTimeout(() => {
@@ -2556,6 +2657,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
 
         return () => {
           disposed = true;
+          clearTimeoutRef(layoutCoolingTimeoutRef);
           if (fullGraphLayoutSettleTimeoutRef.current !== null) {
             window.clearTimeout(fullGraphLayoutSettleTimeoutRef.current);
             fullGraphLayoutSettleTimeoutRef.current = null;
@@ -2573,6 +2675,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
       }
 
       return () => {
+        clearTimeoutRef(layoutCoolingTimeoutRef);
         if (fullGraphLayoutSettleTimeoutRef.current !== null) {
           window.clearTimeout(fullGraphLayoutSettleTimeoutRef.current);
           fullGraphLayoutSettleTimeoutRef.current = null;
@@ -2586,7 +2689,46 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle, GraphCanvasProps>(
     }, [displayGraph, displayMeta.layoutMode, graphVersion, isLayoutRunning, viewMode]);
 
     useEffect(() => {
+      const sigma = sigmaRef.current;
+      if (!graphReady || !sigma || (!isLayoutRunning && !sigma.getCustomBBox())) {
+        return;
+      }
+
+      let frame = 0;
+      let framed: SigmaCustomBBox | null = sigma.getCustomBBox();
+      const tick = () => {
+        const runtimeSigma = sigmaRef.current;
+        if (!runtimeSigma) {
+          return;
+        }
+        const extent = measureGraphExtent(displayGraphRef.current);
+        if (!extent || runtimeSigma.getCamera().isAnimated()) {
+          framed = null;
+          frame = window.requestAnimationFrame(tick);
+          return;
+        }
+        framed = framed
+          ? lerpBBox(framed, extent, isLayoutRunning ? LAYOUT_FRAME_SMOOTHING : LAYOUT_FRAME_RELEASE_SMOOTHING)
+          : extent;
+        if (!isLayoutRunning && isBBoxClose(framed, extent)) {
+          runtimeSigma.setCustomBBox(null);
+          runtimeSigma.scheduleRefresh();
+          return;
+        }
+        runtimeSigma.setCustomBBox(framed);
+        runtimeSigma.scheduleRefresh();
+        frame = window.requestAnimationFrame(tick);
+      };
+      frame = window.requestAnimationFrame(tick);
+
       return () => {
+        window.cancelAnimationFrame(frame);
+      };
+    }, [graphReady, isLayoutRunning]);
+
+    useEffect(() => {
+      return () => {
+        clearTimeoutRef(layoutCoolingTimeoutRef);
         if (fullGraphLayoutSettleTimeoutRef.current !== null) {
           window.clearTimeout(fullGraphLayoutSettleTimeoutRef.current);
           fullGraphLayoutSettleTimeoutRef.current = null;

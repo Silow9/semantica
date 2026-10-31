@@ -9,8 +9,10 @@ import { useDropzone } from 'react-dropzone';
 import { UploadCloud, CheckCircle2, Loader2 } from 'lucide-react';
 import { useImportVocabulary } from './queries';
 import type { ImportResponse } from './types';
+import { useI18n } from '../../i18n';
 
 export const ImportDropzone: React.FC = () => {
+  const { t } = useI18n();
   const [file, setFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<ImportResponse | null>(null);
   const importMutation = useImportVocabulary();
@@ -70,7 +72,7 @@ export const ImportDropzone: React.FC = () => {
         ) : importResult ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#3fb950' }}>
             <CheckCircle2 size={20} style={{ marginBottom: 6 }} />
-            <span style={{ fontSize: 12, fontWeight: 500 }}>Import Successful!</span>
+            <span style={{ fontSize: 12, fontWeight: 500 }}>{t("vocab.importOk")}</span>
             <span style={{ fontSize: 11, marginTop: 2, color: '#56d364' }}>
               +{importResult.nodes_added} concepts · +{importResult.edges_added} links
             </span>
@@ -79,7 +81,7 @@ export const ImportDropzone: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#8b949e' }}>
             <UploadCloud size={20} style={{ marginBottom: 6, color: isDragActive ? '#58a6ff' : '#484f58' }} />
             <span style={{ fontSize: 12, fontWeight: 500, color: '#c9d1d9' }}>
-              {isDragActive ? "Drop here…" : "Import Vocabulary"}
+              {isDragActive ? t("vocab.drop") : t("vocab.import")}
             </span>
             <span style={{ fontSize: 11, marginTop: 2 }}>.ttl or .rdf</span>
           </div>

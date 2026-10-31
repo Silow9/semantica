@@ -9,12 +9,14 @@ import {
   validateShacl,
 } from "./api";
 import type { OntologyEntry, ShaclShapeSummary, ShaclValidationResponse } from "./types";
+import { useI18n } from "../../i18n";
 
 interface ShaclStudioProps {
   onJumpToNode?: (nodeId: string) => void;
 }
 
 export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
+  const { t } = useI18n();
   const [registry, setRegistry] = useState<OntologyEntry[]>([]);
   const [selectedUri, setSelectedUri] = useState("");
   const [shacl, setShacl] = useState("");
@@ -193,15 +195,15 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
     <div style={pageStyle}>
       <section style={heroStyle}>
         <div>
-          <div style={kickerStyle}><Shield size={14} /> SHACL Studio</div>
-          <h2 style={titleStyle}>Generate, edit, and validate shapes</h2>
+          <div style={kickerStyle}><Shield size={14} /> {t("shacl.kicker")}</div>
+          <h2 style={titleStyle}>{t("shacl.title")}</h2>
           <p style={textStyle}>
             Create strict SHACL Turtle from ontology structure, inspect shape targets,
             run validation, and jump from violations back into the graph.
           </p>
         </div>
         <div style={selectorShellStyle}>
-          <label style={labelStyle}>Ontology</label>
+          <label style={labelStyle}>{t("shacl.ontology")}</label>
           <select style={inputStyle} value={selectedUri} onChange={(event) => setSelectedUri(event.target.value)}>
             {registry.map((entry) => <option key={entry.uri} value={entry.uri}>{entry.name}</option>)}
           </select>
@@ -213,11 +215,11 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
       <div style={gridStyle}>
         <section style={cardStyle}>
           <div style={panelHeaderStyle}>
-            <h3 style={sectionTitleStyle}>Shape library</h3>
+            <h3 style={sectionTitleStyle}>{t("shacl.library")}</h3>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <span style={countBadgeStyle}>{shapes.length} shapes</span>
               {selectedShapeId ? (
-                <button style={smallButtonStyle} onClick={handleShowAllShapes}>View all</button>
+                <button style={smallButtonStyle} onClick={handleShowAllShapes}>{t("shacl.viewAll")}</button>
               ) : null}
             </div>
           </div>
@@ -239,7 +241,7 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
                         width: "100%",
                       }}
                       onClick={() => handleSelectShape(shape.id)}
-                      title="Click to load this shape into the editor"
+                      title={t("shacl.loadShape")}
                     >
                       <FileCode2 size={14} color={isSelected ? "#7ce7d3" : "#9ee8d7"} />
                       <div>
@@ -255,7 +257,7 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
                 })}
               </div>
             ))}
-            {!shapes.length ? <p style={mutedStyle}>No shapes generated yet.</p> : null}
+            {!shapes.length ? <p style={mutedStyle}>{t("shacl.none")}</p> : null}
           </div>
         </section>
 
@@ -265,10 +267,10 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
               {selectedShapeId ? selectedShapeId : "Turtle shape editor"}
             </h3>
             <div style={{ display: "flex", gap: 8 }}>
-              <button style={secondaryButtonStyle} disabled={loading} onClick={handleGenerate}><Wand2 size={14} /> Generate strict</button>
+              <button style={secondaryButtonStyle} disabled={loading} onClick={handleGenerate}><Wand2 size={14} /> {t("shacl.generate")}</button>
               <button style={primaryButtonStyle} disabled={loading || !shacl.trim()} onClick={handleValidate}>
                 {loading ? <Loader2 size={14} className="ws-spin" /> : <Play size={14} />}
-                Validate
+                {t("shacl.validate")}
               </button>
             </div>
           </div>
@@ -294,7 +296,7 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
 
       <section style={cardStyle}>
         <div style={panelHeaderStyle}>
-          <h3 style={sectionTitleStyle}>Validation report</h3>
+          <h3 style={sectionTitleStyle}>{t("shacl.report")}</h3>
           {validation ? <span style={validationBadgeStyle(validation.status, validation.conforms)}>{validation.status}{validation.conforms ? " · conforms" : ""}</span> : null}
         </div>
         {validation ? (
@@ -318,11 +320,11 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
                   </div>
                 );
               })}
-              {!validation.violations.length ? <p style={mutedStyle}>No validation violations returned.</p> : null}
+              {!validation.violations.length ? <p style={mutedStyle}>{t("shacl.noViolations")}</p> : null}
             </div>
           </>
         ) : (
-          <p style={mutedStyle}>Generate or edit SHACL Turtle, then run validation.</p>
+          <p style={mutedStyle}>{t("shacl.hint")}</p>
         )}
       </section>
     </div>

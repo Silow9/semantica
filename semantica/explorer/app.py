@@ -118,8 +118,28 @@ def create_app(
         app.state.session = active_session
         app.state.agent_memory = agent_memory
         app.state.markdown_resources = markdown_resources
+        from .documents_store import DocumentStore, resolve_document_root
+        app.state.document_store = DocumentStore(resolve_document_root())
+        from .model_settings import ModelSettingsStore, resolve_settings_path
+        app.state.model_settings = ModelSettingsStore(resolve_settings_path())
+        from .graph_library import GraphLibrary, resolve_graph_root
+
+        def announce_reload(entry: dict) -> None:
+            payload = {"graph_id": entry["id"], "name": entry["name"]}
+            callback = getattr(active_session.graph, "mutation_callback", None)
+            if callable(callback):
+                callback("RELOAD_GRAPH", entry["id"], payload)
+            else:
+                active_session.handle_graph_mutation("RELOAD_GRAPH", entry["id"], payload)
+
+        graph_library = GraphLibrary(resolve_graph_root(), active_session, on_reload=announce_reload)
+        graph_library.attach(adopt_session=session is not None)
+        app.state.graph_library = graph_library
         install_mutation_bridge(app, active_session)
-        yield
+        try:
+            yield
+        finally:
+            graph_library.close()
 
     app = FastAPI(
         title="Semantica Knowledge Explorer",
@@ -168,9 +188,12 @@ def create_app(
     from .routes.analytics import router as analytics_router
     from .routes.annotations import router as annotations_router
     from .routes.decisions import router as decisions_router
+    from .routes.documents import router as documents_router
+    from .routes.model_settings import router as model_settings_router
     from .routes.enrich import router as enrich_router
     from .routes.export_import import router as export_import_router
     from .routes.graph import router as graph_router
+    from .routes.graphs import router as graphs_router
     from .routes.markdown import router as markdown_router
     from .routes.memories import router as memories_router
     from .routes.ontology import router as ontology_router
@@ -181,8 +204,11 @@ def create_app(
 
     _auth = [Depends(require_auth)]
     app.include_router(graph_router, dependencies=_auth)
+    app.include_router(graphs_router, dependencies=_auth)
     app.include_router(analytics_router, dependencies=_auth)
     app.include_router(decisions_router, dependencies=_auth)
+    app.include_router(documents_router, dependencies=_auth)
+    app.include_router(model_settings_router, dependencies=_auth)
     app.include_router(temporal_router, dependencies=_auth)
     app.include_router(enrich_router, dependencies=_auth)
     app.include_router(export_import_router, dependencies=_auth)

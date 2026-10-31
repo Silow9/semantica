@@ -134,6 +134,7 @@ class GraphBuilder:
         }
         # Counts relationships dropped by the reject policy per build() call.
         self._rejected_relationships: int = 0
+        self._text_ordinal = 0
 
         # Initialize logging
         from ..utils.logging import get_logger
@@ -521,12 +522,30 @@ class GraphBuilder:
         if mode == "annotate":
             self._screening_reports.append(report)
 
+    def _report_stage(self, options: Dict[str, Any], stage: str, **counts: Any) -> None:
+        """Notify an optional caller as extraction moves from chunk to chunk."""
+        callback = options.get("stage_callback")
+        if not callable(callback):
+            return
+        total = options.get("chunk_total")
+        callback(
+            stage,
+            processed=self._text_ordinal,
+            total=total if isinstance(total, int) else None,
+            **counts,
+        )
+
+    def _extractor_options(self, options: Dict[str, Any]) -> Dict[str, Any]:
+        hidden = ("stage_callback", "chunk_total")
+        return {key: value for key, value in options.items() if key not in hidden}
+
     def _extract_from_text(self, text: str, all_entities: List[Any], all_relationships: List[Any], **options):
         """Helper to extract knowledge from text using configured methods."""
         if not options.get("extract", True):
             return
 
         self._screen_text(text, options)
+        extract_options = self._extractor_options(options)
 
         from ..semantic_extract.ner_extractor import NERExtractor
         from ..semantic_extract.relation_extractor import RelationExtractor
@@ -540,19 +559,26 @@ class GraphBuilder:
         triplet_method = options.get("triplet_method", "pattern")
         
         self.logger.info(f"Extracting knowledge from text ({len(text)} chars) using {ner_method}...")
+        self._text_ordinal += 1
         
         # 1. Extract Entities
+        self._report_stage(options, "extract_entities")
         ner = self._get_extractor("ner", NERExtractor, ner_method)
         try:
-            entities = ner.extract_entities(text, **options)
+            entities = ner.extract_entities(text, **extract_options)
             extracted_count = len(entities)
             self._extraction_stats["extracted_entities"] += extracted_count
             self.logger.info(f"Extracted {extracted_count} entities")
             for ent in entities:
-                self._process_item(ent, all_entities, all_relationships, **options)
+                self._process_item(ent, all_entities, all_relationships, **extract_options)
         except Exception as e:
             self.logger.error(f"Entity extraction failed: {e}")
             entities = []
+        self._report_stage(
+            options,
+            "extract_entities",
+            entities=self._extraction_stats["extracted_entities"],
+        )
         
         # 2. Extract Relations (if requested)
         # Stays None when relation extraction is skipped or fails, which lets
@@ -561,37 +587,49 @@ class GraphBuilder:
         # extracted with relation_method rather than re-deriving via
         # triplet_method.
         relations = None
+        self._report_stage(options, "extract_relations")
         if options.get("extract_relations", False):
             rel_extractor = self._get_extractor(
                 "relation", RelationExtractor, relation_method
             )
             try:
                 # Pass entities if available to help relation extraction
-                relations = rel_extractor.extract_relations(text, entities=entities, **options)
+                relations = rel_extractor.extract_relations(text, entities=entities, **extract_options)
                 extracted_count = len(relations)
                 self._extraction_stats["extracted_relations"] += extracted_count
                 self.logger.info(f"Extracted {extracted_count} relationships")
                 for rel in relations:
-                    self._process_item(rel, all_entities, all_relationships, **options)
+                    self._process_item(rel, all_entities, all_relationships, **extract_options)
             except Exception as e:
                 self.logger.error(f"Relation extraction failed: {e}")
+        self._report_stage(
+            options,
+            "extract_relations",
+            relationships=self._extraction_stats["extracted_relations"],
+        )
 
         # 3. Extract Triplets (if requested)
+        self._report_stage(options, "extract_triplets")
         if options.get("extract_triplets", True):
             trip_extractor = self._get_extractor(
                 "triplet", TripletExtractor, triplet_method
             )
             try:
                 triplets = trip_extractor.extract_triplets(
-                    text, entities=entities, relations=relations, **options
+                    text, entities=entities, relations=relations, **extract_options
                 )
                 extracted_count = len(triplets)
                 self._extraction_stats["extracted_triplets"] += extracted_count
                 self.logger.info(f"Extracted {extracted_count} triplets")
                 for trip in triplets:
-                    self._process_item(trip, all_entities, all_relationships, **options)
+                    self._process_item(trip, all_entities, all_relationships, **extract_options)
             except Exception as e:
                 self.logger.error(f"Triplet extraction failed: {e}")
+        self._report_stage(
+            options,
+            "extract_triplets",
+            triplets=self._extraction_stats["extracted_triplets"],
+        )
 
     def build(
         self,
@@ -728,6 +766,7 @@ class GraphBuilder:
         self._rejected_relationships = 0
         self._screening_reports = []
         self._screened_text_count = 0
+        self._text_ordinal = 0
         
         tracking_id = self.progress_tracker.start_tracking(
             module="kg",
@@ -928,6 +967,7 @@ class GraphBuilder:
                 f"Extracted {len(all_entities)} entities and "
                 f"{len(all_relationships)} relationships from sources"
             )
+            self._report_stage(options, "build")
 
             # Resolve entities (deduplicate and merge) if resolver is available
             resolved_entities = all_entities

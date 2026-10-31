@@ -117,7 +117,8 @@ documents = [
   "beautifulsoup4>=4.15.0"
 ]
 parse-docling = ["docling>=2.132.0"]
-# pdfplumber powers the default PDFParser; not pulled in by any other extra.
+# pdfplumber powers PDF text extraction. The explorer document upload
+# path includes this extra so the image and CI install can read PDFs.
 parse-pdf = ["pdfplumber>=0.10.0"]
 
 # ---- SHACL Validation ----
@@ -289,7 +290,9 @@ explorer = [
   "uvicorn[standard]>=0.22.0",
   "websockets>=15.0.1",
   "python-multipart>=0.0.7",
-  "defusedxml>=0.7.1"
+  "defusedxml>=0.7.1",
+  "semantica[parse-pdf]",
+  "semantica[llm-openai]",
 ]
 explorer-lite = [
   # 1.66.1 is the first streamlit that accepts Pillow 13 (earlier releases cap

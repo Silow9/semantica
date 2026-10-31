@@ -3,6 +3,7 @@ import Sigma from "sigma";
 
 import { graph, type EdgeAttributes, type NodeAttributes } from "../../store/graphStore";
 import { blendHex, GRAPH_THEME, withAlpha, zoomTierAtLeast } from "./graphTheme";
+import { translateNodeType } from "./graphTermLabels";
 import type {
   GraphAnalyticsSnapshot,
   GraphEffectsState,
@@ -439,7 +440,7 @@ function drawRegionLabel(
 ) {
   const label = text.length > 22 ? `${text.slice(0, 21)}…` : text;
   context.save();
-  context.font = `600 11px "IBM Plex Sans", Inter, system-ui, sans-serif`;
+  context.font = `600 11px "IBM Plex Sans", Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif`;
   context.textBaseline = "middle";
   const width = context.measureText(label).width + 14;
   const height = 22;
@@ -587,7 +588,7 @@ export function drawSemanticRegionsLayer(
         context,
         labelX,
         labelY,
-        summary.semanticGroup,
+        translateNodeType(summary.semanticGroup),
         colors.labelBorderColor,
       );
     }

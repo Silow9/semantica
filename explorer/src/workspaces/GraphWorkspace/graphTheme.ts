@@ -541,7 +541,7 @@ export const GRAPH_THEME: GraphTheme = {
       always: { minZoomTier: "overview" },
     },
     chip: {
-      fontFamily: "\"IBM Plex Sans\", Inter, system-ui, sans-serif",
+      fontFamily: "\"IBM Plex Sans\", Inter, \"PingFang SC\", \"Microsoft YaHei\", system-ui, sans-serif",
       fontWeight: 500,
       fontSize: 10,
       maxFontSize: 11,
@@ -560,7 +560,7 @@ export const GRAPH_THEME: GraphTheme = {
       shadowBlur: 12,
     },
     hoverCard: {
-      fontFamily: "\"IBM Plex Sans\", Inter, system-ui, sans-serif",
+      fontFamily: "\"IBM Plex Sans\", Inter, \"PingFang SC\", \"Microsoft YaHei\", system-ui, sans-serif",
       titleWeight: 700,
       titleSize: 13,
       metaWeight: 500,

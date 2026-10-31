@@ -1,10 +1,18 @@
 # syntax=docker/dockerfile:1
+
+# Must stay above the first FROM. BuildKit only exposes those ARGs to later
+# FROM lines; declared any lower, ${REUSE_DEPS_IMAGE} expands to empty.
+# Default is the interpreter base so a clean `docker build` still installs
+# from the lockfiles. Compose overrides it with semantica-python-deps:local.
+ARG REUSE_DEPS_IMAGE=python:3.13-slim@sha256:8d9d0b8bcf6506481eae4907c18f5e3e7902e629f5f6d684f9e7c32e85e3ddf0
+
 FROM node:26-alpine@sha256:2d984a15c9b54fd0aeb608b8e0d0d83529eb34d2966db27a1fb4f1edc3d298a3 AS frontend-builder
 
 WORKDIR /app
 COPY explorer/package*.json ./explorer/
 WORKDIR /app/explorer
-RUN npm ci
+RUN npm config set registry https://registry.npmmirror.com
+RUN npm ci --no-audit --no-fund
 
 COPY explorer/ ./
 RUN mkdir -p /app/semantica && npm run build
@@ -23,6 +31,9 @@ RUN mkdir -p /app/semantica && npm run build
 # bumps for this image. gensim (extras graph-embeddings / split-topic) still
 # ships no cp314 wheel. Raise the ceiling in pyproject.toml, the Install Matrix
 # and this image together once 3.14 is verified, not with a lone image bump.
+
+FROM ${REUSE_DEPS_IMAGE} AS deps-seed
+
 FROM python:3.13-slim@sha256:8d9d0b8bcf6506481eae4907c18f5e3e7902e629f5f6d684f9e7c32e85e3ddf0 AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -69,11 +80,10 @@ RUN apt-get update \
 RUN groupadd --system semantica \
     && useradd --system --gid semantica --home-dir /app --shell /usr/sbin/nologin semantica
 
-COPY pyproject.toml README.md LICENSE MANIFEST.in \
-     .github/requirements/explorer-extra-py313.txt .github/requirements/pep517-build.txt ./
-COPY semantica/ ./semantica/
-COPY integrations/ ./integrations/
-COPY --from=frontend-builder /app/semantica/static ./semantica/static
+# Lockfiles only. Application source and the frontend bundle are copied
+# after this install, so edits under semantica/, integrations/, or explorer/
+# reuse the layer instead of re-downloading every hashed wheel.
+COPY .github/requirements/explorer-extra-py313.txt .github/requirements/pep517-build.txt ./
 
 # explorer-extra-py313.txt is `uv pip compile pyproject.toml --extra explorer
 # --python-version 3.13 --constraint requirements-ci.txt --generate-hashes`
@@ -87,28 +97,79 @@ COPY --from=frontend-builder /app/semantica/static ./semantica/static
 # and pinned to the same versions CI audited, e.g.
 # setuptools==84.2.1 (which also replaces the base image's vulnerable
 # 70.3.0, CVE-2025-47273 - nothing else in the tree pulls a newer copy).
-# --no-deps on the local package itself: it's our own source tree, not a
-# fetch, so there's nothing to hash-pin there - but `pip install .` still
-# does a PEP 517 build, which by default creates an *isolated* build env
-# and fetches [build-system] requires (setuptools, wheel) completely
-# outside any hash checking. pep517-build.txt pins that exact
-# build-system.requires; installing it first and passing
-# --no-build-isolation makes pip reuse those hash-verified copies instead
-# of fetching its own.
+# pep517-build.txt pins [build-system] requires (setuptools, wheel). The
+# later `pip install .` passes --no-build-isolation so pip reuses these
+# hash-verified copies instead of fetching its own in an isolated env.
 #
-# pip itself is uninstalled once it's done: nothing in the running app
-# shells out to it, and it carries its own vendored urllib3 in
+# deps-seed is copied in first, so packages already present are not
+# downloaded again. The pip cache mount lives on the Docker host, not in
+# the image: a rerun of this layer reuses wheels instead of fetching them.
+# pip itself is left in place for the local install in the next layer.
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    --mount=type=bind,from=deps-seed,source=/usr/local/lib/python3.13/site-packages,target=/tmp/deps-seed-site,ro \
+    --mount=type=bind,from=deps-seed,source=/usr/local/bin,target=/tmp/deps-seed-bin,ro \
+    <<'EOF'
+set -eu
+python -c 'import shutil; from pathlib import Path
+site = Path("/usr/local/lib/python3.13/site-packages")
+seed_site = Path("/tmp/deps-seed-site")
+bin_dir = Path("/usr/local/bin")
+seed_bin = Path("/tmp/deps-seed-bin")
+skip_bins = {"python", "python3", "python3.13", "pip", "pip3", "pip3.13"}
+
+def skip_site(name):
+    return name == "pip" or name.startswith("pip-")
+
+def replace(src, dest):
+    if dest.is_dir() and not dest.is_symlink():
+        shutil.rmtree(dest)
+    elif dest.exists() or dest.is_symlink():
+        dest.unlink()
+    if src.is_dir() and not src.is_symlink():
+        shutil.copytree(src, dest, symlinks=True)
+    else:
+        shutil.copy2(src, dest, follow_symlinks=False)
+
+if seed_site.is_dir():
+    for child in seed_site.iterdir():
+        if not skip_site(child.name):
+            replace(child, site / child.name)
+if seed_bin.is_dir():
+    for child in seed_bin.iterdir():
+        name = child.name
+        if name not in skip_bins and not name.startswith("python"):
+            replace(child, bin_dir / name)
+'
+pip install -r explorer-extra-py313.txt -r pep517-build.txt --require-hashes \
+    -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    --trusted-host pypi.tuna.tsinghua.edu.cn
+rm -f explorer-extra-py313.txt pep517-build.txt
+EOF
+
+COPY pyproject.toml README.md LICENSE MANIFEST.in ./
+COPY semantica/ ./semantica/
+COPY integrations/ ./integrations/
+COPY --from=frontend-builder /app/semantica/static ./semantica/static
+
+# Local tree only. --no-deps / --no-index: dependencies are already installed
+# above, and this step must not contact PyPI when source or the frontend
+# bundle changes. --no-build-isolation reuses the hash-pinned setuptools
+# and wheel from the previous layer.
+#
+# pip itself is uninstalled once that install is done: nothing in the running
+# app shells out to it, and it carries its own vendored urllib3 in
 # pip/_vendor that the hash-pinned urllib3==2.8.0 above can't replace.
 # pip 26.2.1 (the latest release, and what the base image ships) vendors
 # urllib3 2.7.0, which Trivy flags for CVE-2026-97689 (unbounded chunk-size
 # buffering) and CVE-2026-97687 (HTTPS proxy TLS settings override) -
 # alerts #6173/#6174. Removing pip clears both, and keeps the next vendored
 # CVE out of the image too, rather than waiting on a pip release.
-RUN pip install --no-cache-dir -r explorer-extra-py313.txt -r pep517-build.txt --require-hashes \
-    && pip install --no-cache-dir --no-deps --no-build-isolation . \
-    && rm -f explorer-extra-py313.txt pep517-build.txt \
+RUN pip install --no-cache-dir --no-deps --no-build-isolation --no-index . \
     && python -m pip uninstall --yes pip \
+    && mkdir -p /app/data \
     && chown -R semantica:semantica /app
+
+ENV SEMANTICA_DATA_DIR=/app/data
 
 USER semantica
 

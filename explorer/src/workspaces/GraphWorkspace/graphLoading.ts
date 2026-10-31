@@ -1,3 +1,5 @@
+import { t } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
 import type { GraphLoadPhase, GraphLoadProgress, GraphLoadProgressKind, GraphLayoutSource, GraphLayoutState } from "./types";
 
 export const GRAPH_LOAD_STAGE_SEQUENCE: Exclude<GraphLoadPhase, "ready">[] = [
@@ -9,43 +11,51 @@ export const GRAPH_LOAD_STAGE_SEQUENCE: Exclude<GraphLoadPhase, "ready">[] = [
   "stabilizing_layout",
 ];
 
-export function getGraphLoadTitle(phase: GraphLoadPhase): string {
+function phaseTitleKey(phase: GraphLoadPhase): MessageKey {
   switch (phase) {
     case "bootstrapping":
-      return "Preparing graph session";
+      return "graph.phase.bootstrapping";
     case "fetching_nodes":
-      return "Loading nodes";
+      return "graph.phase.fetching_nodes";
     case "fetching_edges":
-      return "Loading relationships";
+      return "graph.phase.fetching_edges";
     case "computing_styling":
-      return "Computing node styling";
+      return "graph.phase.computing_styling";
     case "hydrating_scene":
-      return "Hydrating graph scene";
+      return "graph.phase.hydrating_scene";
     case "stabilizing_layout":
-      return "Stabilizing layout";
+      return "graph.phase.stabilizing_layout";
     case "ready":
     default:
-      return "Graph ready";
+      return "graph.phase.ready";
   }
 }
 
-export function getGraphLoadStageLabel(phase: Exclude<GraphLoadPhase, "ready">): string {
+function stageLabelKey(phase: Exclude<GraphLoadPhase, "ready">): MessageKey {
   switch (phase) {
     case "bootstrapping":
-      return "Prepare";
+      return "graph.stageLabel.bootstrapping";
     case "fetching_nodes":
-      return "Nodes";
+      return "graph.stageLabel.fetching_nodes";
     case "fetching_edges":
-      return "Relations";
+      return "graph.stageLabel.fetching_edges";
     case "computing_styling":
-      return "Styling";
+      return "graph.stageLabel.computing_styling";
     case "hydrating_scene":
-      return "Scene";
+      return "graph.stageLabel.hydrating_scene";
     case "stabilizing_layout":
-      return "Layout";
+      return "graph.stageLabel.stabilizing_layout";
     default:
-      return "Stage";
+      return "graph.stageLabel.unknown";
   }
+}
+
+export function getGraphLoadTitle(phase: GraphLoadPhase): string {
+  return t(phaseTitleKey(phase));
+}
+
+export function getGraphLoadStageLabel(phase: Exclude<GraphLoadPhase, "ready">): string {
+  return t(stageLabelKey(phase));
 }
 
 export function createGraphLoadProgress(input: {

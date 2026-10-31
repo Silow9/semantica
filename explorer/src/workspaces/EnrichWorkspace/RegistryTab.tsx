@@ -7,6 +7,8 @@
 import { useState } from "react";
 import { ClipboardList, Filter, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { useRegistry, clearRegistry, type RegistryEntryOp } from "../../store/registryStore";
+import { useI18n } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
 
 const OP_META: Record<
   RegistryEntryOp,
@@ -36,6 +38,7 @@ function formatDate(date: Date): string {
 }
 
 function EntryRow({ entry }: { entry: ReturnType<typeof useRegistry>[number] }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const meta = OP_META[entry.op];
   const hasDetail = entry.detail && Object.keys(entry.detail).length > 0;
@@ -59,7 +62,7 @@ function EntryRow({ entry }: { entry: ReturnType<typeof useRegistry>[number] }) 
             marginTop: 1,
           }}
         >
-          {meta.label}
+          {t(`registry.op.${entry.op}` as MessageKey)}
         </span>
 
         {/* Content */}
@@ -95,6 +98,7 @@ function EntryRow({ entry }: { entry: ReturnType<typeof useRegistry>[number] }) 
 }
 
 export function RegistryTab() {
+  const { t } = useI18n();
   const entries = useRegistry();
   const [activeFilter, setActiveFilter] = useState<RegistryEntryOp | "all">("all");
 
@@ -109,24 +113,24 @@ export function RegistryTab() {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <ClipboardList size={18} color="#4aa3ff" />
           <div>
-            <div style={{ color: "#ebf3ff", fontSize: 16, fontWeight: 700 }}>Document Registry</div>
+            <div style={{ color: "#ebf3ff", fontSize: 16, fontWeight: 700 }}>{t("registry.title")}</div>
             <div style={{ color: "#8b949e", fontSize: 12 }}>
-              Audit log of all KG and Ontology mutations this session
+              {t("registry.subtitle")}
             </div>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ color: "#8fa8c6", fontSize: 12 }}>
-            {entries.length} event{entries.length !== 1 ? "s" : ""}
+            {entries.length === 1 ? t("registry.event", { count: entries.length }) : t("registry.events", { count: entries.length })}
           </span>
           {entries.length > 0 ? (
             <button
               onClick={clearRegistry}
-              title="Clear all events"
+              title={t("registry.clearTitle")}
               style={clearBtnStyle}
             >
               <Trash2 size={13} />
-              <span>Clear</span>
+              <span>{t("registry.clear")}</span>
             </button>
           ) : null}
         </div>
@@ -161,7 +165,7 @@ export function RegistryTab() {
                   transition: "all 140ms ease",
                 }}
               >
-                {op === "all" ? "All" : (meta?.label ?? op)}
+                {op === "all" ? t("registry.all") : t(`registry.op.${op}` as MessageKey)}
               </button>
             );
           })}
@@ -174,7 +178,7 @@ export function RegistryTab() {
           <div style={emptyStateStyle}>
             <ClipboardList size={36} color="rgba(127,208,255,0.15)" />
             <div style={{ color: "#8b949e", fontSize: 14, marginTop: 12, fontWeight: 500 }}>
-              No events recorded yet
+              {t("registry.none")}
             </div>
             <div style={{ color: "#6a7f97", fontSize: 12, marginTop: 4, textAlign: "center", maxWidth: 300 }}>
               Import a file, run reasoning, or merge entities to see activity appear here.

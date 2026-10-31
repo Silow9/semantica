@@ -61,6 +61,17 @@ def _isolate_semantic_extract_config():
     sys.modules[_CONFIG_MODULE_NAME] = _config_module
 
 
+@pytest.fixture(autouse=True)
+def _isolate_explorer_data_dir(tmp_path, monkeypatch):
+    """Keep Explorer graphs, documents and settings out of the real home dir.
+
+    The Explorer lifespan persists the active graph on startup, so without this
+    every app a test starts would write into ``~/.semantica`` and the next test
+    would load whatever the previous one left there.
+    """
+    monkeypatch.setenv("SEMANTICA_DATA_DIR", str(tmp_path / "semantica-data"))
+
+
 _KNOWN_FAILURES = (
     Path(__file__).resolve().parent.parent
     / ".github"

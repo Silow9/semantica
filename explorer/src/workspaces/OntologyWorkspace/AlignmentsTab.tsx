@@ -9,6 +9,7 @@ import {
   suggestAlignments,
 } from "./api";
 import type { AlignmentRelation, AlignmentSuggestion, OntologyAlignment, OntologyEntry } from "./types";
+import { useI18n } from "../../i18n";
 
 const RELATIONS: AlignmentRelation[] = [
   "owl:equivalentClass",
@@ -31,6 +32,7 @@ const RELATION_COLORS: Record<AlignmentRelation, string> = {
 };
 
 export function AlignmentsTab() {
+  const { t } = useI18n();
   const [registry, setRegistry] = useState<OntologyEntry[]>([]);
   const [alignments, setAlignments] = useState<OntologyAlignment[]>([]);
   const [suggestions, setSuggestions] = useState<AlignmentSuggestion[]>([]);
@@ -199,8 +201,8 @@ export function AlignmentsTab() {
     <div style={pageStyle}>
       <section style={heroStyle}>
         <div>
-          <div style={kickerStyle}><GitMerge size={14} /> Alignment Matrix</div>
-          <h2 style={titleStyle}>Cross-ontology mappings</h2>
+          <div style={kickerStyle}><GitMerge size={14} /> {t("align.kicker")}</div>
+          <h2 style={titleStyle}>{t("align.title")}</h2>
           <p style={textStyle}>
             Manage equivalence and SKOS match relations with confidence, provenance,
             reviewer context, and label-based suggestions.
@@ -222,7 +224,7 @@ export function AlignmentsTab() {
 
       {matrix.ontologies.length >= 2 ? (
         <section style={cardStyle}>
-          <h3 style={sectionTitleStyle}>Pairwise alignment matrix</h3>
+          <h3 style={sectionTitleStyle}>{t("align.matrix")}</h3>
           <div style={{ overflowX: "auto" }}>
             <table style={matrixTableStyle}>
               <thead>
@@ -271,26 +273,26 @@ export function AlignmentsTab() {
               </tbody>
             </table>
           </div>
-          <p style={{ ...mutedStyle, marginTop: 10 }}>Click a relation badge to load it into the editor below.</p>
+          <p style={{ ...mutedStyle, marginTop: 10 }}>{t("align.matrixHint")}</p>
         </section>
       ) : null}
 
       <div style={gridStyle}>
         <section style={cardStyle}>
-          <h3 style={sectionTitleStyle}>Create or update alignment</h3>
-          <label style={labelStyle}>Source entity URI</label>
+          <h3 style={sectionTitleStyle}>{t("align.edit")}</h3>
+          <label style={labelStyle}>{t("align.sourceUri")}</label>
           <input style={inputStyle} value={sourceUri} onChange={(event) => setSourceUri(event.target.value)} />
-          <label style={labelStyle}>Target entity URI</label>
+          <label style={labelStyle}>{t("align.targetUri")}</label>
           <input style={inputStyle} value={targetUri} onChange={(event) => setTargetUri(event.target.value)} />
           <div style={twoColStyle}>
             <div>
-              <label style={labelStyle}>Relation</label>
+              <label style={labelStyle}>{t("align.relation")}</label>
               <select style={inputStyle} value={relation} onChange={(event) => setRelation(event.target.value as AlignmentRelation)}>
                 {RELATIONS.map((item) => <option key={item}>{item}</option>)}
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Confidence {confidence.toFixed(2)}</label>
+              <label style={labelStyle}>{t("align.confidence", { value: confidence.toFixed(2) })}</label>
               <input
                 type="range"
                 min="0"
@@ -302,43 +304,43 @@ export function AlignmentsTab() {
               />
             </div>
           </div>
-          <label style={labelStyle}>Provenance note</label>
+          <label style={labelStyle}>{t("align.note")}</label>
           <textarea style={{ ...inputStyle, minHeight: 74, resize: "vertical" }} value={provenance} onChange={(event) => setProvenance(event.target.value)} />
           <div style={twoColStyle}>
             <div>
-              <label style={labelStyle}>Source</label>
+              <label style={labelStyle}>{t("align.source")}</label>
               <input style={inputStyle} value={source} onChange={(event) => setSource(event.target.value)} />
             </div>
             <div>
-              <label style={labelStyle}>Reviewer</label>
+              <label style={labelStyle}>{t("align.reviewer")}</label>
               <input style={inputStyle} value={reviewer} onChange={(event) => setReviewer(event.target.value)} />
             </div>
           </div>
           <button style={primaryButtonStyle} disabled={busy} onClick={handleSave}>
             {busy ? <Loader2 size={14} className="ws-spin" /> : <GitMerge size={14} />}
-            Save alignment
+            {t("align.save")}
           </button>
         </section>
 
         <section style={cardStyle}>
-          <h3 style={sectionTitleStyle}>Suggest alignments</h3>
+          <h3 style={sectionTitleStyle}>{t("align.suggest")}</h3>
           <div style={twoColStyle}>
             <div>
-              <label style={labelStyle}>Source ontology</label>
+              <label style={labelStyle}>{t("align.sourceOntology")}</label>
               <select style={inputStyle} value={sourceOntology} onChange={(event) => setSourceOntology(event.target.value)}>
-                <option value="">Any ontology</option>
+                <option value="">{t("align.any")}</option>
                 {registry.map((entry) => <option key={entry.uri} value={entry.uri}>{entry.name}</option>)}
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Target ontology</label>
+              <label style={labelStyle}>{t("align.targetOntology")}</label>
               <select style={inputStyle} value={targetOntology} onChange={(event) => setTargetOntology(event.target.value)}>
-                <option value="">Any ontology</option>
+                <option value="">{t("align.any")}</option>
                 {registry.map((entry) => <option key={entry.uri} value={entry.uri}>{entry.name}</option>)}
               </select>
             </div>
           </div>
-          <label style={labelStyle}>Similarity threshold {threshold.toFixed(2)}</label>
+          <label style={labelStyle}>{t("align.threshold", { value: threshold.toFixed(2) })}</label>
           <input
             type="range"
             min="0.25"
@@ -350,7 +352,7 @@ export function AlignmentsTab() {
           />
           <button style={secondaryButtonStyle} disabled={busy} onClick={handleSuggest}>
             <Sparkles size={14} />
-            Suggest alignments
+            {t("align.suggest")}
           </button>
           <div style={suggestionListStyle}>
             {suggestions.map((item) => (
@@ -361,13 +363,13 @@ export function AlignmentsTab() {
                 <span style={{ color: "#8fa8c6" }}>{Math.round(item.score * 100)}%</span>
               </button>
             ))}
-            {!suggestions.length ? <p style={mutedStyle}>Run suggestions to review ranked candidate mappings.</p> : null}
+            {!suggestions.length ? <p style={mutedStyle}>{t("align.suggestEmpty")}</p> : null}
           </div>
         </section>
       </div>
 
       <section style={cardStyle}>
-        <h3 style={sectionTitleStyle}>Recorded alignments</h3>
+        <h3 style={sectionTitleStyle}>{t("align.recorded")}</h3>
         <div style={tableStyle}>
           {alignments.map((item) => (
             <div key={item.id} style={rowStyle}>
@@ -383,12 +385,12 @@ export function AlignmentsTab() {
                 <div style={monoStyle}>{item.target_uri}</div>
               </div>
               <div style={confidenceStyle}>{Math.round(item.confidence * 100)}%</div>
-              <button style={iconButtonStyle} disabled={busy} onClick={() => handleRemove(item.id)} title="Remove alignment">
+              <button style={iconButtonStyle} disabled={busy} onClick={() => handleRemove(item.id)} title={t("align.remove")}>
                 <Trash2 size={14} />
               </button>
             </div>
           ))}
-          {!alignments.length ? <p style={mutedStyle}>No alignments recorded yet.</p> : null}
+          {!alignments.length ? <p style={mutedStyle}>{t("align.none")}</p> : null}
         </div>
       </section>
     </div>

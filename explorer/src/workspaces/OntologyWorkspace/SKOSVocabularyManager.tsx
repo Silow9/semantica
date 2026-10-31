@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useI18n } from "../../i18n";
 import {
   AlertCircle,
   BookOpen,
@@ -73,6 +74,7 @@ function ConceptDetailPanel({
   onClose: () => void;
   onNavigate: (uri: string) => void;
 }) {
+  const { t } = useI18n();
   const [detail, setDetail] = useState<SKOSConceptDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -133,7 +135,7 @@ function ConceptDetailPanel({
       <div style={detailHeaderStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <BookOpen size={13} color="#9ee8d7" />
-          <span style={{ color: "#ebf3ff", fontSize: 13, fontWeight: 700 }}>Concept Detail</span>
+          <span style={{ color: "#ebf3ff", fontSize: 13, fontWeight: 700 }}>{t("summary.detail")}</span>
         </div>
         <button onClick={onClose} style={iconBtnStyle}>
           <X size={14} />
@@ -177,7 +179,7 @@ function ConceptDetailPanel({
           </div>
 
           {detail.definition && (
-            <PropSection label="Definition">
+            <PropSection label={t("skos.definition")}>
               <p style={{ margin: 0, color: "#c6d4e3", fontSize: 13, lineHeight: 1.6 }}>
                 {detail.definition}
               </p>
@@ -185,7 +187,7 @@ function ConceptDetailPanel({
           )}
 
           {detail.scope_note && (
-            <PropSection label="Scope Note">
+            <PropSection label={t("skos.scope")}>
               <p style={{ margin: 0, color: "#8fa8c6", fontSize: 12, lineHeight: 1.5 }}>
                 {detail.scope_note}
               </p>
@@ -193,23 +195,23 @@ function ConceptDetailPanel({
           )}
 
           {detail.editorial_note && (
-            <PropSection label="Editorial Note">
+            <PropSection label={t("skos.editorial")}>
               <p style={{ margin: 0, color: "#8fa8c6", fontSize: 12, lineHeight: 1.5 }}>
                 {detail.editorial_note}
               </p>
             </PropSection>
           )}
 
-          {renderUriList("Broader", detail.broader)}
-          {renderUriList("Narrower", detail.narrower)}
-          {renderUriList("Related", detail.related)}
-          {renderUriList("Exact Match", detail.exact_match)}
-          {renderUriList("Close Match", detail.close_match)}
-          {renderUriList("Broad Match", detail.broad_match)}
-          {renderUriList("Narrow Match", detail.narrow_match)}
+          {renderUriList(t("skos.broader"), detail.broader)}
+          {renderUriList(t("skos.narrower"), detail.narrower)}
+          {renderUriList(t("skos.related"), detail.related)}
+          {renderUriList(t("skos.exact"), detail.exact_match)}
+          {renderUriList(t("skos.close"), detail.close_match)}
+          {renderUriList(t("skos.broad"), detail.broad_match)}
+          {renderUriList(t("skos.narrow"), detail.narrow_match)}
 
           {detail.scheme_uri && (
-            <PropSection label="Concept Scheme">
+            <PropSection label={t("skos.scheme")}>
               <span style={{ color: "#c6d4e3", fontSize: 11, fontFamily: "monospace", wordBreak: "break-all" }}>
                 {detail.scheme_uri}
               </span>
@@ -338,6 +340,7 @@ function SchemePanel({
   onSelectConcept: (uri: string) => void;
   searchQuery: string;
 }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(true);
   const [hierarchy, setHierarchy] = useState<ConceptNode[]>([]);
   const [loading, setLoading] = useState(expanded);
@@ -410,7 +413,7 @@ function SchemePanel({
           <span style={{ color: "#e6edf3", fontSize: 14, fontWeight: 700 }}>{scheme.title}</span>
         </div>
         <span style={{ color: "#6a7f97", fontSize: 11 }}>
-          {loading ? "…" : `${totalConcepts} concept${totalConcepts !== 1 ? "s" : ""}`}
+          {loading ? "…" : t("summary.concepts", { count: totalConcepts })}
         </span>
       </button>
 
@@ -420,11 +423,11 @@ function SchemePanel({
           {loading ? (
             <div style={{ padding: "10px 20px", display: "flex", alignItems: "center", gap: 8 }}>
               <Loader2 size={12} color="#4aa3ff" style={{ animation: "spin 0.8s linear infinite" }} />
-              <span style={{ color: "#6a7f97", fontSize: 12 }}>Loading concepts…</span>
+              <span style={{ color: "#6a7f97", fontSize: 12 }}>{t("summary.loadingConcepts")}</span>
             </div>
           ) : displayedConcepts.length === 0 ? (
             <div style={{ padding: "8px 24px", color: "#6a7f97", fontSize: 12, fontStyle: "italic" }}>
-              {searchQuery ? "No matching concepts" : "No concepts in this scheme"}
+              {searchQuery ? t("skos.noMatch") : t("skos.none")}
             </div>
           ) : (
             <div style={{ paddingTop: 2 }}>
@@ -454,6 +457,7 @@ interface Props {
 }
 
 export function SKOSVocabularyManager({ schemeUri }: Props) {
+  const { t } = useI18n();
   const [schemes, setSchemes] = useState<SKOSScheme[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -487,7 +491,7 @@ export function SKOSVocabularyManager({ schemeUri }: Props) {
           <input
             value={searchQ}
             onChange={(e) => setSearchQ(e.target.value)}
-            placeholder="Search labels and definitions…"
+            placeholder={t("vocab.search")}
             style={skosSearchInputStyle}
           />
           {searchQ && (

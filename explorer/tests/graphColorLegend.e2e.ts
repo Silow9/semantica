@@ -79,8 +79,8 @@ test("visible legend follows loaded data, reloads, focused views, and distance m
     await route.fulfill({ json });
   });
   await page.goto(BASE_URL);
-  await page.getByRole("button", { name: "Open Semantica Explorer" }).click();
-  const legend = page.getByRole("group", { name: "Node colors" });
+  await page.getByRole("button", { name: /Open Semantica Explorer|打开 Semantica Explorer/ }).click();
+  const legend = page.getByRole("group", { name: /Node colors|节点颜色/ });
   await legend.waitFor();
   await page.locator("canvas").first().waitFor({ state: "visible" });
   await assertLegendMatchesGraph(page);
@@ -88,26 +88,26 @@ test("visible legend follows loaded data, reloads, focused views, and distance m
   assert.equal(await legend.getByText("Biomolecule", { exact: true }).count(), 0);
 
   nodes = initialNodes.map((node) => ({ ...node, type: node.type === "Person" ? "Researcher" : node.type }));
-  await page.getByRole("button", { name: "Reload graph data" }).click();
+  await page.getByRole("button", { name: /Reload graph data|重新加载图谱数据/ }).click();
   await legend.getByText("Researcher", { exact: true }).waitFor();
   assert.equal(await legend.getByText("Person", { exact: true }).count(), 0);
   await assertLegendMatchesGraph(page);
 
-  await page.getByPlaceholder("Search command, node, or concept").fill("Alice");
+  await page.getByPlaceholder(/Search command, node, or concept|搜索命令、节点或概念/).fill("Alice");
   await page.getByRole("option").filter({ hasText: "Alice" }).click();
-  const heatmap = page.getByRole("button", { name: "Heatmap", exact: true });
+  const heatmap = page.getByRole("button", { name: /^(Heatmap|热力图)$/ });
   await heatmap.click();
   await legend.waitFor({ state: "hidden" });
   await heatmap.click();
   await legend.waitFor();
   await assertLegendMatchesGraph(page);
-  const focusButton = page.getByRole("button", { name: "Focus", exact: true });
+  const focusButton = page.getByRole("button", { name: /^(Focus|聚焦)$/ });
   assert.equal(await focusButton.isDisabled(), false, "Focus is enabled once a node is selected");
   await focusButton.click();
   await legend.getByText("Document", { exact: true }).waitFor({ state: "hidden" });
   await assertLegendMatchesGraph(page, ["alice", "acme", "research"]);
   assert.equal(await legend.getByText("Researcher", { exact: true }).count(), 1);
-  await page.getByRole("button", { name: "Full Graph", exact: true }).click();
+  await page.getByRole("button", { name: /^(Full Graph|全图)$/ }).click();
   await legend.getByText("Document", { exact: true }).waitFor();
   await assertLegendMatchesGraph(page);
   assert.deepEqual(errors, []);

@@ -1,5 +1,6 @@
 import Graph from "graphology";
 
+import { t } from "../../i18n";
 import { graph, type EdgeAttributes, type NodeAttributes } from "../../store/graphStore";
 import {
   clamp,
@@ -2379,7 +2380,7 @@ function buildCommunityGroupedGraph(): GraphDisplayResult {
       visualPriority: 0.42,
     };
     const size = getGroupedCommunityNodeSize(summary.memberCount);
-    const anchorLabel = summary.anchorAttrs?.label || summary.anchorNodeId || `Community ${communityId}`;
+    const anchorLabel = summary.anchorAttrs?.label || summary.anchorNodeId || t("graph.communityLabel", { id: communityId });
     addNodeIfMissing(grouped, communityNodeId, {
       label: truncateGroupedLabel(anchorLabel),
       content: summary.anchorAttrs?.content || anchorLabel,

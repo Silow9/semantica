@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
 
+import { t } from "../../../i18n";
+import { translateNodeType } from "../graphTermLabels";
 import type { GraphPlugin } from "./types";
 
 const NEIGHBORHOOD_PANEL_ID = "neighborhood-panel";
@@ -14,9 +16,9 @@ function maxWeightBetween(graphRef: any, sourceId: string, targetId: string): nu
 }
 
 function formatNeighborMeta(neighbor: { nodeType: string; degree: number; weight: number }) {
-  const parts = [neighbor.nodeType, `degree ${neighbor.degree}`];
+  const parts = [translateNodeType(neighbor.nodeType), t("neighborhood.degree", { count: neighbor.degree })];
   if (neighbor.weight > 0) {
-    parts.push(`weight ${neighbor.weight.toFixed(2)}`);
+    parts.push(t("neighborhood.weight", { value: neighbor.weight.toFixed(2) }));
   }
   return parts.join(" · ");
 }
@@ -29,8 +31,8 @@ export const neighborhoodPanelPlugin: GraphPlugin = {
   toolbarItems: (context) => [
     {
       id: "neighborhood-toggle",
-      label: "Neighbors",
-      title: "Toggle neighborhood panel",
+      label: t("toolbar.neighbors"),
+      title: t("toolbar.neighborsTitle"),
       active: context.isPanelOpen(NEIGHBORHOOD_PANEL_ID),
       order: 30,
       onClick: () => context.dispatchAction({ type: "togglePanel", panelId: NEIGHBORHOOD_PANEL_ID }),
@@ -46,13 +48,13 @@ export const neighborhoodPanelPlugin: GraphPlugin = {
     if (!selected) {
       return {
         id: NEIGHBORHOOD_PANEL_ID,
-        title: "Neighborhood",
+        title: t("neighborhood.title"),
         placement: "bottom",
         order: 20,
         defaultOpen: false,
         preferredWidth: 360,
         preferredHeight: 260,
-        content: <div style={emptyTextStyle}>Select a node to inspect its local neighborhood.</div>,
+        content: <div style={emptyTextStyle}>{t("neighborhood.empty")}</div>,
       };
     }
 
@@ -91,7 +93,7 @@ export const neighborhoodPanelPlugin: GraphPlugin = {
 
     return {
       id: NEIGHBORHOOD_PANEL_ID,
-      title: "Neighborhood",
+      title: t("neighborhood.title"),
       placement: "bottom",
       order: 20,
       defaultOpen: false,
@@ -101,7 +103,7 @@ export const neighborhoodPanelPlugin: GraphPlugin = {
         <div style={panelBodyStyle}>
           <div style={panelEyebrowStyle}>{selected.label}</div>
           <div style={summaryStyle}>
-            {selected.neighborCount.toLocaleString()} direct neighbors in the full graph
+            {t("neighborhood.directCount", { count: selected.neighborCount.toLocaleString() })}
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button
@@ -110,7 +112,7 @@ export const neighborhoodPanelPlugin: GraphPlugin = {
               disabled={!selected.canCollapseNeighborhood || selected.isNeighborhoodCollapsed}
               style={controlButtonStyle}
             >
-              Collapse Neighborhood
+              {t("neighborhood.collapse")}
             </button>
             <button
               type="button"
@@ -118,17 +120,17 @@ export const neighborhoodPanelPlugin: GraphPlugin = {
               disabled={!selected.isNeighborhoodCollapsed}
               style={controlButtonStyle}
             >
-              Expand Neighborhood
+              {t("neighborhood.expand")}
             </button>
           </div>
           {hiddenNeighborCount > 0 ? (
             <div style={summaryStyle}>
-              {hiddenNeighborCount.toLocaleString()} lower-priority neighbors are collapsed in the current view.
+              {t("neighborhood.collapsedCount", { count: hiddenNeighborCount.toLocaleString() })}
             </div>
           ) : null}
           {aggregatedEdgeCount > 0 ? (
             <div style={summaryStyle}>
-              {aggregatedEdgeCount.toLocaleString()} aggregated structural bundle{aggregatedEdgeCount === 1 ? "" : "s"} visible.
+              {t(aggregatedEdgeCount === 1 ? "neighborhood.bundleOne" : "neighborhood.bundleMany", { count: aggregatedEdgeCount.toLocaleString() })}
             </div>
           ) : null}
           {neighbors.length ? (
@@ -155,7 +157,7 @@ export const neighborhoodPanelPlugin: GraphPlugin = {
               ))}
             </div>
           ) : (
-            <div style={emptyTextStyle}>No direct neighbors are available for this node.</div>
+            <div style={emptyTextStyle}>{t("neighborhood.none")}</div>
           )}
         </div>
       ),

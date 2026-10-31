@@ -7,6 +7,7 @@ import {
   type MarkdownApplyResult,
 } from "./GraphWorkspace/markdownResourceClient";
 import { GRAPH_THEME } from "./GraphWorkspace/graphTheme";
+import { useI18n } from "../i18n";
 
 interface MemorySummary {
   id: string;
@@ -67,6 +68,7 @@ async function fetchLoadedMemoryPages(endOffset: number): Promise<{
 }
 
 export function MemoryWorkspace({ onDirtyChange }: MemoryWorkspaceProps = {}) {
+  const { t } = useI18n();
   const [items, setItems] = useState<MemorySummary[]>([]);
   const [total, setTotal] = useState(0);
   const [nextOffset, setNextOffset] = useState(0);
@@ -221,18 +223,18 @@ export function MemoryWorkspace({ onDirtyChange }: MemoryWorkspaceProps = {}) {
 
   return (
     <div style={workspaceStyle}>
-      <aside style={listPanelStyle} aria-label="Agent memories">
+      <aside style={listPanelStyle} aria-label={t("memory.list")}>
         <div style={listHeaderStyle}>
           <div>
-            <div style={listTitleStyle}>AgentMemory</div>
-            <div style={listCountStyle}>{items.length} of {total} loaded</div>
+            <div style={listTitleStyle}>{t("memory.title")}</div>
+            <div style={listCountStyle}>{t("memory.loaded", { loaded: items.length, total })}</div>
           </div>
           <button
             type="button"
-            aria-label="Refresh memories"
+            aria-label={t("memory.refresh")}
             onClick={() => setReloadToken((value) => value + 1)}
             disabled={loading || loadingMore || dirty}
-            title={dirty ? "Apply or cancel the current draft before refreshing" : "Refresh memories"}
+            title={dirty ? t("memory.refreshBlocked") : t("memory.refresh")}
             style={{ ...iconButtonStyle, opacity: loading || loadingMore || dirty ? 0.55 : 1 }}
           >
             <RefreshCw size={14} aria-hidden="true" />
@@ -252,26 +254,26 @@ export function MemoryWorkspace({ onDirtyChange }: MemoryWorkspaceProps = {}) {
             >
               <span style={memoryTypeStyle}>{item.type}</span>
               <span style={memoryIdStyle}>{item.id}</span>
-              <span style={memoryExcerptStyle}>{item.excerpt || "Empty memory"}</span>
+              <span style={memoryExcerptStyle}>{item.excerpt || t("memory.emptyItem")}</span>
             </button>
           ))}
           {nextOffset < total ? (
             <button
               type="button"
-              aria-label="Load more memories"
+              aria-label={t("memory.loadMore")}
               onClick={() => void loadMoreMemories()}
               disabled={loading || loadingMore}
               style={{ ...retryButtonStyle, opacity: loading || loadingMore ? 0.55 : 1 }}
             >
-              {loadingMore ? "Loading…" : "Load more"}
+              {loadingMore ? t("memory.loadingMore") : t("memory.loadMoreLabel")}
             </button>
           ) : null}
           {!loading && items.length === 0 ? (
             <div style={emptyStyle}>
               <Brain size={22} aria-hidden="true" />
-              <span>No AgentMemory items are available.</span>
+              <span>{t("memory.empty")}</span>
               <button type="button" onClick={() => setReloadToken((value) => value + 1)} style={retryButtonStyle}>
-                Refresh
+                {t("memory.refreshButton")}
               </button>
             </div>
           ) : null}
@@ -281,11 +283,11 @@ export function MemoryWorkspace({ onDirtyChange }: MemoryWorkspaceProps = {}) {
       <main style={editorPanelStyle}>
         {error ? <div role="alert" style={alertStyle}>{error}</div> : null}
         {loading ? (
-          <div role="status" style={emptyStyle}>Loading memories…</div>
+          <div role="status" style={emptyStyle}>{t("memory.loading")}</div>
         ) : selectedId ? (
           <>
             <div style={selectionHeaderStyle}>
-              <span style={selectionLabelStyle}>Selected memory</span>
+              <span style={selectionLabelStyle}>{t("memory.selected")}</span>
               <strong style={selectionIdStyle}>{selectedId}</strong>
             </div>
             <MarkdownContentViewer

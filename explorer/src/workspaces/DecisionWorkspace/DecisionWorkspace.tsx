@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Scale, Search, ArrowRight, Info } from "lucide-react";
+import { useI18n } from "../../i18n";
 
 type OutcomeKind = "approved" | "rejected" | "deferred" | "pending" | string;
 
@@ -61,6 +62,7 @@ function RelEdge({ label }: { label: string }) {
 }
 
 function CausalFlow({ chain, loading }: { chain: ChainStep[]; loading: boolean }) {
+  const { t } = useI18n();
   if (loading) return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {[1,2,3].map((i) => <div key={i} className="ws-skeleton" style={{ height: 68 }} />)}
@@ -69,8 +71,8 @@ function CausalFlow({ chain, loading }: { chain: ChainStep[]; loading: boolean }
   if (!chain.length) return (
     <div className="ws-empty">
       <div className="ws-empty-icon"><Info size={28} /></div>
-      <div className="ws-empty-title">No chain steps</div>
-      <div className="ws-empty-body">No causal chain steps were found for this decision.</div>
+      <div className="ws-empty-title">{t("decision.emptyChain")}</div>
+      <div className="ws-empty-body">{t("decision.emptyChainHelp")}</div>
     </div>
   );
   return (
@@ -86,6 +88,7 @@ function CausalFlow({ chain, loading }: { chain: ChainStep[]; loading: boolean }
 }
 
 export function DecisionWorkspace() {
+  const { t } = useI18n();
   const [decisions, setDecisions] = useState<{ decision_id: string; category?: string; outcome?: string }[]>([]);
   const [selected, setSelected] = useState<{ decision_id: string; category?: string; outcome?: string } | null>(null);
   const [chain, setChain] = useState<ChainStep[]>([]);
@@ -173,7 +176,7 @@ export function DecisionWorkspace() {
             <div style={{ width: 30, height: 30, borderRadius: 9, background: "var(--ws-accent-soft)", border: "1px solid var(--ws-border-strong)", display: "grid", placeItems: "center", color: "var(--ws-accent)", flexShrink: 0 }}>
               <Scale size={15} />
             </div>
-            <div style={{ color: "var(--ws-text)", fontSize: 14, fontWeight: 700 }}>Decisions</div>
+            <div style={{ color: "var(--ws-text)", fontSize: 14, fontWeight: 700 }}>{t("decision.title")}</div>
             {decisions.length > 0 && !listLoading && (
               <span className="ws-pill ws-pill--mono" style={{ marginLeft: "auto" }}>{decisions.length}</span>
             )}
@@ -183,7 +186,7 @@ export function DecisionWorkspace() {
             <input
               className="ws-input"
               type="text"
-              placeholder="Filter by ID, category, outcome…"
+              placeholder={t("decision.filter")}
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               style={{ paddingLeft: 30, fontSize: 12 }}
@@ -198,8 +201,8 @@ export function DecisionWorkspace() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="ws-empty" style={{ padding: "28px 12px" }}>
-              <div className="ws-empty-title">{decisions.length === 0 ? "No decisions" : "No matches"}</div>
-              <div className="ws-empty-body">{decisions.length === 0 ? "No decisions available in the graph." : "Adjust your filter."}</div>
+              <div className="ws-empty-title">{decisions.length === 0 ? t("decision.none") : t("decision.noMatch")}</div>
+              <div className="ws-empty-body">{decisions.length === 0 ? t("decision.noneHelp") : t("decision.filterHelp")}</div>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -242,7 +245,7 @@ export function DecisionWorkspace() {
             <div style={{ marginBottom: 28 }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
                 <div>
-                  <div className="ws-eyebrow" style={{ marginBottom: 6 }}>Decision Record</div>
+                  <div className="ws-eyebrow" style={{ marginBottom: 6 }}>{t("decision.record")}</div>
                   <h2 className="ws-title">{selected.decision_id}</h2>
                 </div>
                 {selected.outcome && <OutcomeBadge outcome={selected.outcome} />}
@@ -256,9 +259,9 @@ export function DecisionWorkspace() {
             <div className="ws-card" style={{ padding: 22 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
                 <div style={{ width: 8, height: 8, borderRadius: 999, background: "linear-gradient(135deg, var(--ws-accent), var(--ws-amber))", boxShadow: "0 0 10px rgba(74,163,255,0.4)" }} />
-                <div style={{ color: "var(--ws-text)", fontSize: 14, fontWeight: 700 }}>Causal Chain</div>
+                <div style={{ color: "var(--ws-text)", fontSize: 14, fontWeight: 700 }}>{t("decision.chain")}</div>
                 {chain.length > 0 && !chainLoading && (
-                  <span className="ws-pill ws-pill--accent" style={{ marginLeft: "auto" }}>{chain.length} step{chain.length !== 1 ? "s" : ""}</span>
+                  <span className="ws-pill ws-pill--accent" style={{ marginLeft: "auto" }}>{chain.length === 1 ? t("decision.step", { count: chain.length }) : t("decision.steps", { count: chain.length })}</span>
                 )}
               </div>
               <CausalFlow chain={chain} loading={chainLoading} />
@@ -268,8 +271,8 @@ export function DecisionWorkspace() {
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 1 }}>
             <div className="ws-empty">
               <div className="ws-empty-icon"><Scale size={32} /></div>
-              <div className="ws-empty-title">No decision selected</div>
-              <div className="ws-empty-body">Select a decision from the list to inspect its causal chain and metadata.</div>
+              <div className="ws-empty-title">{t("decision.pick")}</div>
+              <div className="ws-empty-body">{t("decision.pickHelp")}</div>
             </div>
           </div>
         )}

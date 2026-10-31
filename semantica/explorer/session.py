@@ -47,6 +47,7 @@ class GraphSession:
     ) -> None:
         self.graph = graph
         self._provenance_storage_path = provenance_storage_path
+        self.source_name: Optional[str] = None
         self._lock = threading.RLock()
         self._search_index = GraphSearchIndex()
 
@@ -69,9 +70,30 @@ class GraphSession:
 
     @classmethod
     def from_file(cls, path: str) -> "GraphSession":
+        from pathlib import Path
+
         graph = ContextGraph()
         graph.load_from_file(path)
-        return cls(graph)
+        session = cls(graph)
+        session.source_name = Path(path).stem
+        return session
+
+    def replace_graph_contents(self, graph_dict: Dict[str, Any]) -> None:
+        """Swap in another graph's data while keeping this ContextGraph object.
+
+        Routes, the search index, the WebSocket bridge and Markdown resources all
+        hold this same ``self.graph``, so switching graphs must not rebind it.
+        """
+        with self._lock:
+            suspended = getattr(self.graph, "_suspend_mutation_callback", False)
+            self.graph._suspend_mutation_callback = True
+            try:
+                self.graph.from_dict(graph_dict)
+            finally:
+                self.graph._suspend_mutation_callback = suspended
+            self.annotations.clear()
+            self._bump_graph_revision_locked()
+        self.rebuild_search_index()
 
     @staticmethod
     def _encode_cursor(value: str) -> str:

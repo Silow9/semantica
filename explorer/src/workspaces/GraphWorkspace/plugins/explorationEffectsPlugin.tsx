@@ -1,45 +1,48 @@
 import type { CSSProperties } from "react";
 
+import { t } from "../../../i18n";
+import type { MessageKey } from "../../../i18n/messages";
 import type {
   GraphDiagnosticsSnapshot,
   GraphEffectAvailability,
   GraphEffectToggle,
 } from "../types";
+import { translateNodeType } from "../graphTermLabels";
 import type { GraphPlugin } from "./types";
 
 const EFFECTS_PANEL_ID = "effects-panel";
 
 type EffectRowConfig = {
   key: GraphEffectToggle;
-  label: string;
-  description: string;
+  label: MessageKey;
+  description: MessageKey;
 };
 
 const EFFECT_ROWS: EffectRowConfig[] = [
   {
     key: "pathPulseEnabled",
-    label: "Path Pulse",
-    description: "Animated pulse on the active selected path.",
+    label: "effects.pathPulse",
+    description: "effects.pathPulseDesc",
   },
   {
     key: "pathFlowEnabled",
-    label: "Path Flow",
-    description: "Directional flow accents along the active selected path.",
+    label: "effects.pathFlow",
+    description: "effects.pathFlowDesc",
   },
   {
     key: "lensEnabled",
-    label: "Neighborhood Lens",
-    description: "Local emphasis around the hovered or selected node.",
+    label: "effects.lens",
+    description: "effects.lensDesc",
   },
   {
     key: "edgeLabelsEnabled",
-    label: "Edge Labels",
-    description: "Draw the relationship type on graph edges. Off restores label-free edges on dense graphs.",
+    label: "effects.edgeLabels",
+    description: "effects.edgeLabelsDesc",
   },
   {
     key: "legendEnabled",
-    label: "Semantic Legend",
-    description: "Compact semantic group legend for graph orientation.",
+    label: "effects.semanticLegend",
+    description: "effects.semanticLegendDesc",
   },
 ];
 
@@ -57,7 +60,7 @@ const EFFECT_AVAILABILITY_KEYS: Partial<Record<GraphEffectToggle, keyof GraphDia
 function renderAvailabilityText(availability: GraphEffectAvailability) {
   if (availability.available) {
     if (typeof availability.visibleSegments === "number" && typeof availability.segmentCap === "number") {
-      return `${availability.reason} · ${availability.visibleSegments}/${availability.segmentCap} segments`;
+      return `${availability.reason} · ${t("effects.segments", { visible: availability.visibleSegments, cap: availability.segmentCap })}`;
     }
     return availability.reason;
   }
@@ -104,7 +107,7 @@ function EffectToggleRow({
         <div style={rowMetaStyle}>{renderAvailabilityText(availability)}</div>
       </div>
       <button type="button" onClick={onToggle} style={checked ? toggleButtonActiveStyle : toggleButtonStyle}>
-        {checked ? "On" : "Off"}
+        {checked ? t("effects.on") : t("effects.off")}
       </button>
     </div>
   );
@@ -118,8 +121,8 @@ export const explorationEffectsPlugin: GraphPlugin = {
   toolbarItems: (context) => [
     {
       id: "effects-toggle",
-      label: "Effects",
-      title: "Open exploration effects controls",
+      label: t("toolbar.effects"),
+      title: t("toolbar.effectsTitle"),
       active: context.isPanelOpen(EFFECTS_PANEL_ID),
       order: 18,
       onClick: () => context.dispatchAction({ type: "togglePanel", panelId: EFFECTS_PANEL_ID }),
@@ -137,7 +140,7 @@ export const explorationEffectsPlugin: GraphPlugin = {
 
     return {
       id: EFFECTS_PANEL_ID,
-      title: "Effects",
+      title: t("toolbar.effects"),
       placement: "bottom",
       order: 8,
       defaultOpen: false,
@@ -145,15 +148,15 @@ export const explorationEffectsPlugin: GraphPlugin = {
       preferredHeight: 320,
       content: (
         <div style={panelBodyStyle}>
-          <div style={panelEyebrowStyle}>Exploration effects</div>
+          <div style={panelEyebrowStyle}>{t("effects.eyebrow")}</div>
 
           <div style={sectionStyle}>
-            <div style={sectionTitleStyle}>Path and focus</div>
+            <div style={sectionTitleStyle}>{t("effects.pathAndFocus")}</div>
             {EFFECT_ROWS.map((row) => (
               <EffectToggleRow
                 key={row.key}
-                label={row.label}
-                description={row.description}
+                label={t(row.label)}
+                description={t(row.description)}
                 checked={effectsState[row.key]}
                 availability={
                   (EFFECT_AVAILABILITY_KEYS[row.key] !== undefined
@@ -161,7 +164,7 @@ export const explorationEffectsPlugin: GraphPlugin = {
                     : undefined) ?? {
                     enabled: effectsState[row.key],
                     available: false,
-                    reason: "Waiting for graph runtime",
+                    reason: t("effects.reason.waitingRuntime"),
                   }
                 }
                 onToggle={() => context.dispatchAction({ type: "toggleEffect", effect: row.key })}
@@ -171,7 +174,7 @@ export const explorationEffectsPlugin: GraphPlugin = {
 
           {effectsState.legendEnabled ? (
             <div style={sectionStyle}>
-              <div style={sectionTitleStyle}>Semantic legend</div>
+              <div style={sectionTitleStyle}>{t("effects.semanticLegend")}</div>
               {legendItems.length ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {legendItems.map((item) => (
@@ -184,37 +187,37 @@ export const explorationEffectsPlugin: GraphPlugin = {
                         }}
                       />
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={rowTitleStyle}>{item.group}</div>
-                        <div style={rowMetaStyle}>{item.count.toLocaleString()} nodes</div>
+                        <div style={rowTitleStyle}>{translateNodeType(item.group)}</div>
+                        <div style={rowMetaStyle}>{t("graph.nodes", { count: item.count.toLocaleString() })}</div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div style={emptyTextStyle}>Legend data will populate when graph metadata is available.</div>
+                <div style={emptyTextStyle}>{t("effects.legendPending")}</div>
               )}
             </div>
           ) : null}
 
           {import.meta.env.DEV ? (
             <div style={sectionStyle}>
-              <div style={sectionTitleStyle}>Diagnostics</div>
+              <div style={sectionTitleStyle}>{t("effects.diagnostics")}</div>
               <EffectToggleRow
-                label="Dev Diagnostics"
-                description="Inspect plugin, interaction, and effect gating state."
+                label={t("effects.devDiagnostics")}
+                description={t("effects.devDiagnosticsDesc")}
                 checked={effectsState.diagnosticsEnabled}
                 availability={
                   availability?.diagnostics ?? {
                     enabled: effectsState.diagnosticsEnabled,
                     available: false,
-                    reason: "Waiting for graph runtime",
+                    reason: t("effects.reason.waitingRuntime"),
                   }
                 }
                 onToggle={() => context.dispatchAction({ type: "toggleEffect", effect: "diagnosticsEnabled" })}
               />
               {effectsState.diagnosticsEnabled && diagnosticsSnapshot ? (
                 <details style={detailsStyle}>
-                  <summary style={summaryStyle}>Runtime snapshot</summary>
+                  <summary style={summaryStyle}>{t("effects.runtimeSnapshot")}</summary>
                   <pre style={diagnosticsPreStyle}>
                     {JSON.stringify(diagnosticsSnapshot, null, 2)}
                   </pre>

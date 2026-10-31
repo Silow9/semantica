@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useI18n } from "../../i18n";
 import {
   Layers,
   GitMerge,
@@ -38,6 +39,7 @@ interface Proposal {
 }
 
 export function VersionsTab() {
+  const { t } = useI18n();
   const [ontologyUri, setOntologyUri] = useState<string>("");
   const [versions, setVersions] = useState<VersionEntry[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -337,10 +339,10 @@ export function VersionsTab() {
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
-        <h1 style={titleStyle}>Versions & Change Proposals</h1>
+        <h1 style={titleStyle}>{t("versions.title")}</h1>
         <input
           type="text"
-          placeholder="Ontology URI"
+          placeholder={t("versions.uri")}
           value={ontologyUri}
           onChange={(e) => setOntologyUri(e.target.value)}
           style={{ ...inputStyle, width: "300px", marginBottom: 0 }}
@@ -356,7 +358,7 @@ export function VersionsTab() {
         </h2>
         <div style={listStyle}>
           {versions.length === 0 ? (
-            <div style={{ color: "#8fa8c6", fontSize: "13px" }}>No versions found</div>
+            <div style={{ color: "#8fa8c6", fontSize: "13px" }}>{t("versions.none")}</div>
           ) : (
             versions.map((version) => (
               <div key={version.version_id} style={itemStyle}>
@@ -377,7 +379,7 @@ export function VersionsTab() {
                   }}
                 >
                   <ArrowRight size={12} />
-                  Compare
+                  {t("versions.compareBtn")}
                 </button>
               </div>
             ))
@@ -392,7 +394,7 @@ export function VersionsTab() {
         </h2>
         <div style={listStyle}>
           {proposals.length === 0 ? (
-            <div style={{ color: "#8fa8c6", fontSize: "13px" }}>No proposals found</div>
+            <div style={{ color: "#8fa8c6", fontSize: "13px" }}>{t("versions.noProposals")}</div>
           ) : (
             proposals.map((proposal) => (
               <div key={proposal.proposal_id} style={itemStyle}>
@@ -409,18 +411,18 @@ export function VersionsTab() {
                   <div style={{ display: "flex", gap: "6px" }}>
                     <button style={buttonStyle} onClick={() => approveProposal(proposal.proposal_id)}>
                       <CheckCircle size={12} />
-                      Approve
+                      {t("versions.approve")}
                     </button>
                     <button style={buttonStyle} onClick={() => rejectProposal(proposal.proposal_id)}>
                       <XCircle size={12} />
-                      Reject
+                      {t("versions.reject")}
                     </button>
                   </div>
                 )}
                 {proposal.state === "approved" && (
                   <button style={buttonStyle} onClick={() => publishProposal(proposal.proposal_id)}>
                     <Send size={12} />
-                    Publish
+                    {t("versions.publish")}
                   </button>
                 )}
                 <button
@@ -443,7 +445,7 @@ export function VersionsTab() {
         <div style={modalOverlayStyle} onClick={() => setShowProposalModal(false)}>
           <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px" }}>
-              <h3 style={{ margin: 0, color: "#ebf3ff", fontSize: "16px" }}>Proposal Details</h3>
+              <h3 style={{ margin: 0, color: "#ebf3ff", fontSize: "16px" }}>{t("versions.details")}</h3>
               <button onClick={() => setShowProposalModal(false)} style={{ background: "none", border: "none", color: "#8fa8c6", cursor: "pointer" }}>
                 <X size={18} />
               </button>
@@ -500,7 +502,7 @@ export function VersionsTab() {
         <div style={modalOverlayStyle} onClick={() => setShowCompareModal(false)}>
           <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px" }}>
-              <h3 style={{ margin: 0, color: "#ebf3ff", fontSize: "16px" }}>Compare Versions</h3>
+              <h3 style={{ margin: 0, color: "#ebf3ff", fontSize: "16px" }}>{t("versions.compare")}</h3>
               <button onClick={() => setShowCompareModal(false)} style={{ background: "none", border: "none", color: "#8fa8c6", cursor: "pointer" }}>
                 <X size={18} />
               </button>
@@ -531,7 +533,7 @@ export function VersionsTab() {
             </div>
             <button style={buttonStyle} onClick={runVersionComparison} disabled={isLoading}>
               <Scale size={12} />
-              {isLoading ? "Comparing..." : "Compare"}
+              {isLoading ? t("versions.comparing") : t("versions.compareBtn")}
             </button>
             {compareResult && (
               <pre style={{ marginTop: "16px", background: "rgba(3, 9, 18, 0.8)", padding: "12px", borderRadius: "6px", color: "#ebf3ff", fontSize: "12px", overflow: "auto" }}>
