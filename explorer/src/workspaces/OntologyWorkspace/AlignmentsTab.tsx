@@ -43,7 +43,7 @@ export function AlignmentsTab() {
   const [relation, setRelation] = useState<AlignmentRelation>("skos:exactMatch");
   const [confidence, setConfidence] = useState(0.86);
   const [provenance, setProvenance] = useState("");
-  const [source, setSource] = useState("Ontology Hub");
+  const [source, setSource] = useState(() => t("align.defaultSource"));
   const [reviewer, setReviewer] = useState("");
   const [threshold, setThreshold] = useState(0.68);
   const [busy, setBusy] = useState(false);
@@ -62,12 +62,12 @@ export function AlignmentsTab() {
       setSourceOntology((current) => current || registryResult.value[0]?.uri || "");
       setTargetOntology((current) => current || registryResult.value[1]?.uri || registryResult.value[0]?.uri || "");
     } else {
-      errors.push(registryResult.reason instanceof Error ? registryResult.reason.message : "Failed to load ontology registry.");
+      errors.push(registryResult.reason instanceof Error ? registryResult.reason.message : t("align.loadRegistryFailed"));
     }
     if (alignmentResult.status === "fulfilled") {
       setAlignments(alignmentResult.value);
     } else {
-      errors.push(alignmentResult.reason instanceof Error ? alignmentResult.reason.message : "Failed to load alignments.");
+      errors.push(alignmentResult.reason instanceof Error ? alignmentResult.reason.message : t("align.loadFailed"));
     }
     if (errors.length) setError(errors.join(" "));
   }, []);
@@ -87,12 +87,12 @@ export function AlignmentsTab() {
         setSourceOntology((current) => current || registryResult.value[0]?.uri || "");
         setTargetOntology((current) => current || registryResult.value[1]?.uri || registryResult.value[0]?.uri || "");
       } else {
-        errors.push(registryResult.reason instanceof Error ? registryResult.reason.message : "Failed to load ontology registry.");
+        errors.push(registryResult.reason instanceof Error ? registryResult.reason.message : t("align.loadRegistryFailed"));
       }
       if (alignmentResult.status === "fulfilled") {
         setAlignments(alignmentResult.value);
       } else {
-        errors.push(alignmentResult.reason instanceof Error ? alignmentResult.reason.message : "Failed to load alignments.");
+        errors.push(alignmentResult.reason instanceof Error ? alignmentResult.reason.message : t("align.loadFailed"));
       }
       if (errors.length) setError(errors.join(" "));
     }
@@ -133,7 +133,7 @@ export function AlignmentsTab() {
 
   const handleSave = useCallback(async () => {
     if (!sourceUri.trim() || !targetUri.trim()) {
-      setError("Provide both source and target entity URIs.");
+      setError(t("align.needUris"));
       return;
     }
     setBusy(true);
@@ -152,7 +152,7 @@ export function AlignmentsTab() {
       setTargetUri("");
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save alignment.");
+      setError(err instanceof Error ? err.message : t("align.saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -170,7 +170,7 @@ export function AlignmentsTab() {
       });
       setSuggestions(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not suggest alignments.");
+      setError(err instanceof Error ? err.message : t("align.suggestFailed"));
     } finally {
       setBusy(false);
     }
@@ -191,7 +191,7 @@ export function AlignmentsTab() {
       await removeAlignment(id);
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not remove alignment.");
+      setError(err instanceof Error ? err.message : t("align.removeFailed"));
     } finally {
       setBusy(false);
     }
@@ -203,23 +203,19 @@ export function AlignmentsTab() {
         <div>
           <div style={kickerStyle}><GitMerge size={14} /> {t("align.kicker")}</div>
           <h2 style={titleStyle}>{t("align.title")}</h2>
-          <p style={textStyle}>
-            Manage equivalence and SKOS match relations with confidence, provenance,
-            reviewer context, and label-based suggestions.
-          </p>
+          <p style={textStyle}>{t("align.intro")}</p>
         </div>
         <div style={summaryGridStyle}>
-          <Metric label="Mappings" value={alignments.length} />
-          <Metric label="Relations" value={relationCounts.size} />
-          <Metric label="Suggestions" value={suggestions.length} />
+          <Metric label={t("align.mappings")} value={alignments.length} />
+          <Metric label={t("align.relations")} value={relationCounts.size} />
+          <Metric label={t("align.suggestions")} value={suggestions.length} />
         </div>
       </section>
 
       {error ? <div style={errorStyle}>{error}</div> : null}
 
       <div style={ephemeralBannerStyle}>
-        Alignments are stored in server memory and are not persisted across restarts.
-        Export your graph or ontology to preserve recorded mappings.
+        {t("align.ephemeral")}
       </div>
 
       {matrix.ontologies.length >= 2 ? (
@@ -407,17 +403,17 @@ function Metric({ label, value }: { label: string; value: number }) {
 }
 
 const pageStyle: CSSProperties = { height: "100%", overflow: "auto", padding: 22, display: "flex", flexDirection: "column", gap: 16 };
-const heroStyle: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 18, padding: 22, border: "1px solid rgba(127,208,255,0.12)", borderRadius: 22, background: "linear-gradient(135deg, rgba(11,25,42,0.94), rgba(7,14,25,0.9))" };
+const heroStyle: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 18, padding: 22, border: "1px solid rgba(232,234,237,0.16)", borderRadius: 22, background: "linear-gradient(145deg, #2A2A2A 0%, #141414 14%, #080808 36%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.16)" };
 const kickerStyle: CSSProperties = { display: "inline-flex", gap: 8, alignItems: "center", color: "#9ee8d7", fontSize: 11, fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" };
 const titleStyle: CSSProperties = { margin: "8px 0", color: "#ebf3ff", fontSize: 26, letterSpacing: "-0.04em" };
 const textStyle: CSSProperties = { margin: 0, color: "#8fa8c6", lineHeight: 1.6, maxWidth: 620 };
 const summaryGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3, minmax(100px, 1fr))", gap: 10, minWidth: 320 };
 const metricStyle: CSSProperties = { padding: 14, borderRadius: 16, background: "rgba(255,255,255,0.035)", border: "1px solid rgba(127,208,255,0.1)", display: "flex", flexDirection: "column", gap: 4 };
 const gridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(320px, 0.9fr) minmax(360px, 1.1fr)", gap: 16 };
-const cardStyle: CSSProperties = { padding: 18, border: "1px solid rgba(127,208,255,0.12)", borderRadius: 20, background: "rgba(9,19,34,0.78)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" };
+const cardStyle: CSSProperties = { padding: 18, border: "1px solid rgba(232,234,237,0.16)", borderRadius: 20, background: "#080808", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.16)" };
 const sectionTitleStyle: CSSProperties = { margin: "0 0 14px", color: "#ebf3ff", fontSize: 16 };
 const labelStyle: CSSProperties = { display: "block", color: "#6a7f97", fontSize: 11, fontWeight: 800, margin: "10px 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" };
-const inputStyle: CSSProperties = { width: "100%", boxSizing: "border-box", border: "1px solid rgba(127,208,255,0.14)", borderRadius: 12, padding: "10px 12px", background: "rgba(3,9,18,0.8)", color: "#ebf3ff" };
+const inputStyle: CSSProperties = { width: "100%", boxSizing: "border-box", border: "1px solid rgba(127,208,255,0.14)", borderRadius: 12, padding: "10px 12px", background: "rgba(12,12,12,0.8)", color: "#ebf3ff" };
 const twoColStyle: CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 };
 const primaryButtonStyle: CSSProperties = { marginTop: 14, width: "100%", border: "1px solid rgba(124,231,211,0.35)", borderRadius: 12, padding: "11px 13px", background: "linear-gradient(135deg, rgba(20,151,136,0.55), rgba(74,163,255,0.35))", color: "#ebf3ff", fontWeight: 900, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 };
 const secondaryButtonStyle: CSSProperties = { ...primaryButtonStyle, background: "rgba(127,208,255,0.08)", borderColor: "rgba(127,208,255,0.18)" };

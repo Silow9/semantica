@@ -50,7 +50,7 @@ export const temporalOverlayPlugin: GraphPlugin = {
             padding: "8px 12px",
             borderRadius: 999,
             border: "1px solid rgba(127, 208, 255, 0.18)",
-            background: "linear-gradient(135deg, rgba(6, 15, 27, 0.88), rgba(11, 22, 39, 0.76))",
+            background: "linear-gradient(145deg, #2A2A2A 0%, #141414 14%, #080808 36%)",
             boxShadow: "0 12px 30px rgba(0, 0, 0, 0.28)",
             color: "#dce9f8",
             fontSize: 11,

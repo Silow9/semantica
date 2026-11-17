@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 
 import { en, zh, type MessageKey } from "./messages";
 
@@ -64,14 +64,20 @@ export function lookupCatalog(
   return localized[key] ?? english[key] ?? fallback;
 }
 
-export function t(key: MessageKey, vars?: Record<string, string | number>): string {
-  let text = lookupCatalog(catalogs, key, key);
+function translateLocale(locale: Locale, key: MessageKey, vars?: Record<string, string | number>): string {
+  const localized = catalogs[locale][key];
+  const english = catalogs.en[key];
+  let text = localized ?? english ?? key;
   if (vars) {
     for (const [name, value] of Object.entries(vars)) {
       text = text.replaceAll(`{${name}}`, String(value));
     }
   }
   return text;
+}
+
+export function t(key: MessageKey, vars?: Record<string, string | number>): string {
+  return translateLocale(currentLocale, key, vars);
 }
 
 export interface LocalizedMessage {
@@ -129,6 +135,14 @@ function getLocaleSnapshot(): Locale {
 }
 
 export function useI18n() {
+  "use no memo";
   const locale = useSyncExternalStore(subscribe, getLocaleSnapshot, getLocaleSnapshot);
-  return { locale, setLocale, t };
+  // `t` must be a new function whenever the locale changes. The React compiler
+  // memoizes render output by reference, and a stable translator keeps the
+  // previous language on screen after the store updates.
+  const translate = useMemo(
+    () => (key: MessageKey, vars?: Record<string, string | number>) => translateLocale(locale, key, vars),
+    [locale],
+  );
+  return { locale, setLocale, t: translate };
 }

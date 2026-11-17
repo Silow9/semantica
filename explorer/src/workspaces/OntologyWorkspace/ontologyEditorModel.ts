@@ -7,7 +7,7 @@ export type RegistryEntry = {
 
 export const ONTOLOGY_MINIMAP_THEME = {
   bgColor: "#0b1625",
-  maskColor: "rgba(7, 17, 31, 0.72)",
+  maskColor: "rgba(28, 28, 28, 0.72)",
   maskStrokeColor: "#5faeff",
   maskStrokeWidth: 2,
   nodeColor: "#2d7fd3",

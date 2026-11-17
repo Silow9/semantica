@@ -101,6 +101,7 @@ function ResultRow({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div
       onClick={onSelect}
@@ -133,7 +134,7 @@ function ResultRow({
       )}
       {result.source_ontology && (
         <div style={{ color: "#5a7a9a", fontSize: 10 }}>
-          From: {result.source_ontology}
+          {t("search.from", { value: result.source_ontology })}
         </div>
       )}
     </div>
@@ -141,6 +142,7 @@ function ResultRow({
 }
 
 function CollapsibleList({ label, items }: { label: string; items: string[] }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   if (!items.length) return null;
   return (
@@ -162,7 +164,7 @@ function CollapsibleList({ label, items }: { label: string; items: string[] }) {
             </div>
           ))}
           {items.length > 12 && (
-            <span style={{ color: "#5a7a9a", fontSize: 10 }}>+{items.length - 12} more</span>
+            <span style={{ color: "#5a7a9a", fontSize: 10 }}>{t("summary.more", { count: items.length - 12 })}</span>
           )}
         </div>
       )}
@@ -177,6 +179,7 @@ function DetailPanel({
   uri: string;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const [detail, setDetail] = useState<EntityDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -193,9 +196,9 @@ function DetailPanel({
     let ignore = false;
     fetch(`/api/ontology/entity/${encodeURIComponent(uri)}`)
       .then(async (r) => {
-        if (!r.ok) throw new Error("Not found");
+        if (!r.ok) throw new Error(t("search.notFound"));
         const data = await r.json();
-        if (r.status === 207) setError(data.message || "Warning: Partial success loading entity.");
+        if (r.status === 207) setError(data.message || t("search.partial"));
         return data;
       })
       .then((data) => {
@@ -252,7 +255,7 @@ function DetailPanel({
           </div>
 
           {detail.definition && (
-            <DetailSection label="Definition">
+            <DetailSection label={t("search.definition")}>
               <p style={{ margin: 0, color: "#c6d4e3", fontSize: 13, lineHeight: 1.6 }}>
                 {detail.definition}
               </p>
@@ -260,20 +263,20 @@ function DetailPanel({
           )}
 
           {detail.instance_count > 0 && (
-            <DetailSection label="Instances">
+            <DetailSection label={t("search.instances")}>
               <span style={{ color: "#9ee8d7", fontSize: 14, fontWeight: 800 }}>
                 {detail.instance_count.toLocaleString()}
               </span>
             </DetailSection>
           )}
 
-          <CollapsibleList label="Superclasses / Broader" items={detail.superclasses} />
-          <CollapsibleList label="Subclasses / Narrower" items={detail.subclasses} />
-          <CollapsibleList label="Domain" items={detail.domain} />
-          <CollapsibleList label="Range" items={detail.range} />
+          <CollapsibleList label={t("search.superclasses")} items={detail.superclasses} />
+          <CollapsibleList label={t("search.subclasses")} items={detail.subclasses} />
+          <CollapsibleList label={t("search.domain")} items={detail.domain} />
+          <CollapsibleList label={t("search.range")} items={detail.range} />
 
           {detail.source_ontology && (
-            <DetailSection label="Source Ontology">
+            <DetailSection label={t("search.sourceOntology")}>
               <span style={{ color: "#c6d4e3", fontSize: 12, fontFamily: "monospace" }}>
                 {detail.source_ontology}
               </span>
@@ -287,7 +290,7 @@ function DetailPanel({
             style={openUriStyle}
           >
             <ExternalLink size={11} />
-            Open URI
+            {t("search.openUri")}
           </a>
         </div>
       )}
@@ -329,7 +332,7 @@ export function OntologySearch() {
       const params = new URLSearchParams({ q: q.trim(), limit: "80" });
       if (type !== "all") params.set("entity_type", type);
       const res = await fetch(`/api/ontology/search?${params}`);
-      if (!res.ok) throw new Error("Search failed");
+      if (!res.ok) throw new Error(t("search.failed"));
       setResults(await res.json());
     } catch {
       setResults([]);
@@ -527,7 +530,7 @@ const detailPanelStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   borderLeft: "1px solid rgba(127,208,255,0.1)",
-  background: "rgba(3,9,18,0.5)",
+  background: "rgba(12,12,12,0.5)",
   overflow: "hidden",
 };
 

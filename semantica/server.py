@@ -236,9 +236,9 @@ async def serve_spa(full_path: str):
         if index_file.is_file():
             return FileResponse(index_file)
         return JSONResponse({
-            "name": "Semantica Knowledge Explorer",
+            "name": "GianStrategy Knowledge Explorer",
             "version": __version__,
-            "message": "Welcome to Semantica. The frontend is not built yet — run `npm run build` inside the explorer/ directory, or open the Vite dev server at http://localhost:5173.",
+            "message": "Welcome to GianStrategy. The frontend is not built yet — run `npm run build` inside the explorer/ directory, or open the Vite dev server at http://localhost:5173.",
             "docs": "/docs",
             "health": "/health",
         })

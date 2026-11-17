@@ -34,7 +34,7 @@ export function Sidebar({ onSelectConcept }: SidebarProps) {
     <div style={{
       width: 340, display: 'flex', flexDirection: 'column',
       borderRight: '1px solid rgba(88,166,255,0.15)',
-      backgroundColor: '#010409', overflow: 'hidden',
+      background: 'var(--ws-nested-bg)', overflow: 'hidden',
     }}>
       {/* Header */}
       <div style={{
@@ -73,7 +73,7 @@ export function Sidebar({ onSelectConcept }: SidebarProps) {
             }}
           >
             {schemes.map((s: VocabularyScheme) => (
-              <option key={s.uri} value={s.uri} style={{ background: '#0d1117' }}>
+              <option key={s.uri} value={s.uri} style={{ background: '#080808' }}>
                 {s.label}
               </option>
             ))}

@@ -44,6 +44,67 @@ def test_docx_reads_ooxml_paragraphs():
     assert parsed["items"][0]["text"] == "Quarterly note"
 
 
+def _xlsx(sheets: list[tuple[str, list[list[str]]]]) -> bytes:
+    def column(index: int) -> str:
+        name = ""
+        index += 1
+        while index:
+            index, rest = divmod(index - 1, 26)
+            name = chr(ord("A") + rest) + name
+        return name
+
+    x_ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    r_ns = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as package:
+        workbook_sheets, rels = [], []
+        for position, (name, rows) in enumerate(sheets, start=1):
+            part = len(sheets) - position + 1
+            workbook_sheets.append(f'<sheet name="{name}" sheetId="{position}" r:id="rId{position}"/>')
+            rels.append(
+                f'<Relationship Id="rId{position}" Type="{r_ns}/worksheet" Target="worksheets/sheet{part}.xml"/>'
+            )
+            xml_rows = "".join(
+                f'<row r="{r + 1}">'
+                + "".join(
+                    f'<c r="{column(c)}{r + 1}" t="inlineStr"><is><t>{value}</t></is></c>'
+                    for c, value in enumerate(row)
+                    if value
+                )
+                + "</row>"
+                for r, row in enumerate(rows)
+            )
+            package.writestr(
+                f"xl/worksheets/sheet{part}.xml",
+                f'<worksheet xmlns="{x_ns}"><sheetData>{xml_rows}</sheetData></worksheet>',
+            )
+        package.writestr(
+            "xl/workbook.xml",
+            f'<workbook xmlns="{x_ns}" xmlns:r="{r_ns}"><sheets>{"".join(workbook_sheets)}</sheets></workbook>',
+        )
+        package.writestr(
+            "xl/_rels/workbook.xml.rels",
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            + "".join(rels)
+            + "</Relationships>",
+        )
+    return buffer.getvalue()
+
+
+def test_xlsx_reads_every_sheet_in_order_and_segments_large_tables():
+    big = [["id", "note"]] + [[str(i), "x" * 100] for i in range(60)]
+    parsed = parse_bytes("book.xlsx", _xlsx([("People", [["name", "city"], ["Ada", ""], ["", "Paris"]]), ("Big", big)]))
+    assert parsed["error"] is None
+    items = parsed["items"]
+    assert items[0]["sheet"] == "People"
+    assert "<td>Ada</td><td></td>" in items[0]["text"]
+    assert "<td></td><td>Paris</td>" in items[0]["text"]
+    big_items = [item for item in items if item["sheet"] == "Big"]
+    assert len(big_items) > 1
+    assert all("<th>id</th><th>note</th>" in item["text"] for item in big_items)
+    assert sum(item["text"].count("<tr>") - 1 for item in big_items) == 60
+
+
 def test_pdf_reports_missing_pdfplumber(monkeypatch):
     monkeypatch.setitem(sys.modules, "pdfplumber", None)
     parsed = parse_bytes("scan.pdf", b"%PDF-1.4")

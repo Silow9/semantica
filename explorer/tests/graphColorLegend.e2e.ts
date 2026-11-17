@@ -79,7 +79,7 @@ test("visible legend follows loaded data, reloads, focused views, and distance m
     await route.fulfill({ json });
   });
   await page.goto(BASE_URL);
-  await page.getByRole("button", { name: /Open Semantica Explorer|打开 Semantica Explorer/ }).click();
+  await page.getByRole("button", { name: /Open GianStrategy Explorer|打开 GianStrategy Explorer/ }).click();
   const legend = page.getByRole("group", { name: /Node colors|节点颜色/ });
   await legend.waitFor();
   await page.locator("canvas").first().waitFor({ state: "visible" });

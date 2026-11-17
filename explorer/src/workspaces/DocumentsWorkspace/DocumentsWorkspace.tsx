@@ -42,6 +42,8 @@ const methodLabels: Record<ExtractionMethod, MessageKey> = {
 type ParsedItem = {
   text: string;
   doc_type_kwd: string;
+  sheet?: string;
+  sheet_index?: number;
 };
 
 type DocumentDetail = DocumentSummary & {
@@ -424,8 +426,14 @@ export function DocumentsWorkspace() {
               ) : null}
               {detail.items.map((item, index) => (
                 <article key={`${detail.id}-${index}`} className="ws-card" style={{ padding: 14 }}>
-                  <div className="ws-pill ws-pill--mono" style={{ marginBottom: 8 }}>{item.doc_type_kwd}</div>
-                  <pre style={{ margin: 0, whiteSpace: "pre-wrap", color: "var(--ws-text)", fontFamily: "inherit", fontSize: 13 }}>{item.text}</pre>
+                  <div className="ws-pill ws-pill--mono" style={{ marginBottom: 8 }}>
+                    {item.doc_type_kwd} · #{index + 1}{item.sheet ? ` · ${item.sheet}` : ""}
+                  </div>
+                  {item.doc_type_kwd === "table" && item.text.trimStart().startsWith("<table") ? (
+                    <div className="ws-parsed-table" dangerouslySetInnerHTML={{ __html: item.text }} />
+                  ) : (
+                    <pre style={{ margin: 0, whiteSpace: "pre-wrap", color: "var(--ws-text)", fontFamily: "inherit", fontSize: 13 }}>{item.text}</pre>
+                  )}
                 </article>
               ))}
             </div>

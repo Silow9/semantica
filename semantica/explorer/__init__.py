@@ -52,7 +52,7 @@ def main(argv=None):
     """CLI entry point for the Knowledge Explorer server."""
     parser = argparse.ArgumentParser(
         prog="semantica-explorer",
-        description="Semantica Knowledge Explorer — interactive dashboard for KG exploration",
+        description="GianStrategy Knowledge Explorer — interactive dashboard for KG exploration",
     )
     parser.add_argument(
         "--graph", "-g",
@@ -148,7 +148,7 @@ def main(argv=None):
     _out.print(
         Panel(
             f"[cyan]API docs[/cyan]  {url}/docs\n[cyan]Health[/cyan]    {url}/api/health",
-            title=f"[bold]Semantica Explorer[/bold] · [dim]{url}[/dim]",
+            title=f"[bold]GianStrategy Explorer[/bold] · [dim]{url}[/dim]",
             border_style="cyan",
             expand=False,
         )

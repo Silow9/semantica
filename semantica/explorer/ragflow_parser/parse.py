@@ -18,6 +18,7 @@ from typing import Any
 from xml.etree import ElementTree as ET
 
 MAX_ITEMS = 5000
+TABLE_CHUNK_CHARS = 2000
 CSV_SAMPLE_BYTES = 64 * 1024
 CSV_SAMPLE_ROWS = 20
 CSV_DELIMITERS = [",", ";", "\t", "|"]
@@ -43,6 +44,9 @@ _NATIVE_ONLY = {
 
 _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _X_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+_R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+_PKG_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+_CELL_REF = re.compile(r"^([A-Z]+)")
 
 
 def parse_bytes(filename: str, data: bytes) -> dict[str, Any]:
@@ -347,15 +351,7 @@ def _parse_csv(filename: str, data: bytes) -> dict[str, Any]:
     rows = _read_csv(text, delimiter)
     if not rows:
         return _payload(filename, data, "CSVParser", "csv", encoding, [], [])
-    return _payload(
-        filename,
-        data,
-        "CSVParser",
-        "csv",
-        encoding,
-        [{"text": _html_table(rows), "doc_type_kwd": "table"}],
-        [],
-    )
+    return _payload(filename, data, "CSVParser", "csv", encoding, _table_segments(rows), [])
 
 
 def _detect_delimiter(text: str) -> str:
@@ -433,15 +429,15 @@ def _docx_items(xml: bytes) -> list[dict[str, Any]]:
 
 
 def _parse_xlsx(filename: str, data: bytes) -> dict[str, Any]:
+    items: list[dict[str, Any]] = []
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as package:
             shared = _shared_strings(package)
-            sheet_name = _first_sheet(package)
-            sheet = package.read(sheet_name)
-    except (zipfile.BadZipFile, KeyError) as exc:
+            for index, (sheet_name, part) in enumerate(_sheet_parts(package), start=1):
+                rows = _xlsx_rows(package.read(part), shared)
+                items.extend(_table_segments(rows, caption=sheet_name, sheet_index=index))
+    except (zipfile.BadZipFile, KeyError, ET.ParseError) as exc:
         return _error(filename, "XLSXParser", "xlsx", f"XLSXParser: {exc}")
-    rows = _xlsx_rows(sheet, shared)
-    items = [{"text": _html_table(rows), "doc_type_kwd": "table"}] if rows else []
     return _payload(filename, data, "XLSXParser", "xlsx", "utf-8", items, [])
 
 
@@ -455,11 +451,39 @@ def _shared_strings(package: zipfile.ZipFile) -> list[str]:
     return values
 
 
-def _first_sheet(package: zipfile.ZipFile) -> str:
-    sheets = sorted(name for name in package.namelist() if name.startswith("xl/worksheets/sheet"))
-    if not sheets:
+def _sheet_parts(package: zipfile.ZipFile) -> list[tuple[str, str]]:
+    """Return ``(sheet name, zip part)`` pairs in workbook tab order."""
+    names = set(package.namelist())
+    sheets: list[tuple[str, str]] = []
+    if "xl/workbook.xml" in names and "xl/_rels/workbook.xml.rels" in names:
+        rels = ET.fromstring(package.read("xl/_rels/workbook.xml.rels"))
+        targets = {
+            rel.attrib.get("Id", ""): rel.attrib.get("Target", "")
+            for rel in rels.iter(f"{{{_PKG_REL_NS}}}Relationship")
+        }
+        workbook = ET.fromstring(package.read("xl/workbook.xml"))
+        for sheet in workbook.iter(f"{{{_X_NS}}}sheet"):
+            target = targets.get(sheet.attrib.get(f"{{{_R_NS}}}id", ""), "")
+            part = target.lstrip("/") if target.startswith("/") else f"xl/{target}"
+            if part in names:
+                sheets.append((sheet.attrib.get("name", ""), part))
+    if sheets:
+        return sheets
+    parts = [name for name in names if re.fullmatch(r"xl/worksheets/sheet\d+\.xml", name)]
+    if not parts:
         raise KeyError("xl/worksheets/sheet")
-    return sheets[0]
+    parts.sort(key=lambda name: int(re.search(r"(\d+)\.xml$", name).group(1)))
+    return [(Path(name).stem, name) for name in parts]
+
+
+def _column_index(ref: str) -> int | None:
+    match = _CELL_REF.match(ref)
+    if not match:
+        return None
+    index = 0
+    for letter in match.group(1):
+        index = index * 26 + ord(letter) - ord("A") + 1
+    return index - 1
 
 
 def _xlsx_rows(xml: bytes, shared: list[str]) -> list[list[str]]:
@@ -468,6 +492,9 @@ def _xlsx_rows(xml: bytes, shared: list[str]) -> list[list[str]]:
     for row in root.iter(f"{{{_X_NS}}}row"):
         cells: list[str] = []
         for cell in row.findall(f"{{{_X_NS}}}c"):
+            column = _column_index(cell.attrib.get("r", ""))
+            if column is not None and column > len(cells):
+                cells.extend([""] * (column - len(cells)))
             kind = cell.attrib.get("t", "")
             value_node = cell.find(f"{{{_X_NS}}}v")
             if kind == "s" and value_node is not None and value_node.text:
@@ -482,6 +509,40 @@ def _xlsx_rows(xml: bytes, shared: list[str]) -> list[list[str]]:
         if any(cell.strip() for cell in cells):
             rows.append(cells)
     return rows
+
+
+def _table_segments(
+    rows: list[list[str]],
+    caption: str = "",
+    sheet_index: int | None = None,
+    budget: int = TABLE_CHUNK_CHARS,
+) -> list[dict[str, Any]]:
+    """Split a table into header-repeating segments of at most ``budget`` data characters."""
+    if not rows:
+        return []
+    width = max(len(row) for row in rows)
+    rows = [row + [""] * (width - len(row)) for row in rows]
+    header, body = rows[0], rows[1:]
+    groups: list[list[list[str]]] = []
+    current: list[list[str]] = []
+    size = 0
+    for row in body:
+        row_size = sum(len(cell) for cell in row)
+        if current and size + row_size > budget:
+            groups.append(current)
+            current, size = [], 0
+        current.append(row)
+        size += row_size
+    if current or not groups:
+        groups.append(current)
+    items: list[dict[str, Any]] = []
+    for group in groups:
+        item: dict[str, Any] = {"text": _html_table([header, *group], caption), "doc_type_kwd": "table"}
+        if sheet_index is not None:
+            item["sheet_index"] = sheet_index
+            item["sheet"] = caption
+        items.append(item)
+    return items
 
 
 def _parse_pdf(filename: str, data: bytes) -> dict[str, Any]:
@@ -502,13 +563,14 @@ def _parse_pdf(filename: str, data: bytes) -> dict[str, Any]:
     return _payload(filename, data, "PDFParser", "pdf", "utf-8", items or [{"text": "", "doc_type_kwd": "text"}], [])
 
 
-def _html_table(rows: list[list[str]]) -> str:
+def _html_table(rows: list[list[str]], caption: str = "") -> str:
     if not rows:
         return "<table></table>"
+    caption_html = f"<caption>{escape(caption)}</caption>" if caption else ""
     head, body = rows[0], rows[1:]
     header = "".join(f"<th>{escape(cell)}</th>" for cell in head)
     body_html = "".join(
         "<tr>" + "".join(f"<td>{escape(cell)}</td>" for cell in row) + "</tr>"
         for row in body
     )
-    return f"<table><thead><tr>{header}</tr></thead><tbody>{body_html}</tbody></table>"
+    return f"<table>{caption_html}<thead><tr>{header}</tr></thead><tbody>{body_html}</tbody></table>"

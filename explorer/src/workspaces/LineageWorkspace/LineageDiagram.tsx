@@ -8,7 +8,7 @@ import { useI18n } from "../../i18n";
 import "@xyflow/react/dist/style.css";
 
 const THEME_CSS = `
-  .react-flow { background: var(--ws-bg, #060d1a); }
+  .react-flow { background: transparent; }
   .react-flow__node-group {
     background: rgba(74,163,255,0.04);
     border: 1px dashed rgba(74,163,255,0.18);
@@ -129,11 +129,11 @@ export function LineageDiagram() {
   }, [activeId]);
 
   return (
-    <div style={{ width: "100%", height: "100%", position: "relative", background: "var(--ws-bg, #060d1a)" }}>
+    <div style={{ width: "100%", height: "100%", position: "relative", background: "var(--ws-nested-bg)" }}>
       <style>{THEME_CSS}</style>
 
       {/* Toolbar */}
-      <div style={{ position: "absolute", top: 14, left: 14, right: 14, zIndex: 10, display: "flex", gap: 8, alignItems: "center", background: "rgba(4,10,18,0.88)", backdropFilter: "blur(14px)", padding: "8px 12px", borderRadius: 12, border: "1px solid rgba(74,163,255,0.16)", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
+      <div style={{ position: "absolute", top: 14, left: 14, right: 14, zIndex: 10, display: "flex", gap: 8, alignItems: "center", background: "rgba(12,12,12,0.88)", backdropFilter: "blur(14px)", padding: "8px 12px", borderRadius: 12, border: "1px solid rgba(74,163,255,0.16)", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
         <span className="ws-eyebrow" style={{ color: "var(--ws-accent, #4aa3ff)", marginRight: 4 }}>{t("lineage.title")}</span>
         <input
           className="ws-input"

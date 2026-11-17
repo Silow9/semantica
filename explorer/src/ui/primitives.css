@@ -7,9 +7,7 @@
   flex: 1;
   gap: 18px;
   padding: 20px;
-  background:
-    radial-gradient(circle at top, rgba(103, 182, 255, 0.08), transparent 24%),
-    linear-gradient(180deg, rgba(8, 17, 29, 0.94), rgba(3, 7, 14, 0.98));
+  background: var(--ws-nested-bg, linear-gradient(145deg, #2A2A2A 0%, #141414 14%, #080808 36%));
 }
 
 .sem-workspace-frame > :last-child {
@@ -29,10 +27,8 @@
   padding: 20px 22px;
   border-radius: 26px;
   border: 1px solid var(--panel-border);
-  background:
-    linear-gradient(180deg, rgba(8, 18, 33, 0.88), rgba(11, 22, 38, 0.72)),
-    radial-gradient(circle at top right, rgba(255, 179, 109, 0.08), transparent 28%);
-  box-shadow: var(--shadow-strong), inset 0 1px 0 rgba(255,255,255,0.04);
+  background: var(--ws-facet, linear-gradient(145deg, #2A2A2A 0%, #141414 14%, #080808 36%));
+  box-shadow: var(--shadow-strong), inset 0 1px 0 rgba(255,255,255,0.16);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
@@ -54,8 +50,8 @@
   width: 7px;
   height: 7px;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--accent-2), var(--warm));
-  box-shadow: 0 0 14px rgba(158, 217, 255, 0.45);
+  background: linear-gradient(135deg, #F4F6F8, #8E949E);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.28);
 }
 
 .sem-workspace-title {
@@ -101,16 +97,14 @@
 .sem-surface {
   border-radius: 24px;
   border: 1px solid var(--panel-border);
-  background:
-    linear-gradient(180deg, rgba(9, 18, 32, 0.84), rgba(10, 18, 31, 0.72)),
-    radial-gradient(circle at top, rgba(103, 182, 255, 0.05), transparent 34%);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255,255,255,0.04);
+  background: var(--ws-facet, linear-gradient(145deg, #2A2A2A 0%, #141414 14%, #080808 36%));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255,255,255,0.16);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
 
 .sem-surface--subtle {
-  background: linear-gradient(180deg, rgba(9, 18, 32, 0.7), rgba(9, 16, 28, 0.52));
+  background: linear-gradient(145deg, rgba(42, 42, 42, 0.72) 0%, rgba(8, 8, 8, 0.88) 36%);
 }
 
 .sem-surface--accent {
@@ -366,7 +360,6 @@
   border-bottom: 1px solid rgba(255,255,255,0.05);
   font-size: 13px;
 }
-
 @media (max-width: 1180px) {
   .sem-grid-two,
   .sem-grid-split {

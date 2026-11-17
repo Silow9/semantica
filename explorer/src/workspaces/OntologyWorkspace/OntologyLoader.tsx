@@ -111,12 +111,13 @@ function Textarea({
 }
 
 function PreviewCard({ preview }: { preview: OntologyPreview }) {
+  const { t } = useI18n();
   return (
     <div style={previewCardStyle}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <CheckCircle2 size={16} color="#4cc38a" />
         <span style={{ color: "#4cc38a", fontSize: 12, fontWeight: 700 }}>
-          Preview ready
+          {t("loader.previewReady")}
         </span>
         <Badge label={preview.format} color="#58a6ff" />
       </div>
@@ -129,11 +130,11 @@ function PreviewCard({ preview }: { preview: OntologyPreview }) {
       )}
 
       <div style={previewGridStyle}>
-        <PreviewRow label="Namespace" value={preview.namespace || preview.uri} mono />
-        {preview.version && <PreviewRow label="Version" value={preview.version} />}
-        {preview.license && <PreviewRow label="License" value={preview.license} />}
+        <PreviewRow label={t("loader.namespace")} value={preview.namespace || preview.uri} mono />
+        {preview.version && <PreviewRow label={t("onto.version")} value={preview.version} />}
+        {preview.license && <PreviewRow label={t("loader.license")} value={preview.license} />}
         <PreviewRow
-          label="Estimated triples"
+          label={t("loader.triples")}
           value={preview.estimated_triples.toLocaleString()}
         />
       </div>
@@ -198,14 +199,14 @@ function URLImportPanel({ onLoaded }: { onLoaded: () => void }) {
         body: JSON.stringify({ url: url.trim(), format: format || undefined }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || "Preview failed");
+        const err = await res.json().catch(() => ({ detail: t("loader.unknownError") }));
+        throw new Error(err.detail || t("loader.previewFailed"));
       }
       setPreview(await res.json());
       setPreviewState("idle");
     } catch (e) {
       setPreviewState("error");
-      setErrorMsg(e instanceof Error ? e.message : "Could not fetch preview");
+      setErrorMsg(e instanceof Error ? e.message : t("loader.previewFailed"));
     }
   };
 
@@ -225,8 +226,8 @@ function URLImportPanel({ onLoaded }: { onLoaded: () => void }) {
         }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Load failed" }));
-        throw new Error(err.detail || "Load failed");
+        const err = await res.json().catch(() => ({ detail: t("loader.loadFailed") }));
+        throw new Error(err.detail || t("loader.loadFailed"));
       }
       setLoadState("success");
       setTimeout(() => {
@@ -235,13 +236,13 @@ function URLImportPanel({ onLoaded }: { onLoaded: () => void }) {
       }, 1200);
     } catch (e) {
       setLoadState("error");
-      setErrorMsg(e instanceof Error ? e.message : "Load failed");
+      setErrorMsg(e instanceof Error ? e.message : t("loader.loadFailed"));
     }
   };
 
   return (
     <div style={panelBodyStyle}>
-      <FieldGroup label="Ontology URL">
+      <FieldGroup label={t("loader.ontologyUrl")}>
         <div style={{ display: "flex", gap: 8 }}>
           <input
             type="url"
@@ -262,7 +263,7 @@ function URLImportPanel({ onLoaded }: { onLoaded: () => void }) {
             {previewState === "loading" ? (
               <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />
             ) : (
-              "Fetch Preview"
+              t("loader.fetchPreview")
             )}
           </button>
         </div>
@@ -285,32 +286,32 @@ function URLImportPanel({ onLoaded }: { onLoaded: () => void }) {
           size={13}
           style={{ transform: showAdvanced ? "rotate(180deg)" : undefined, transition: "200ms" }}
         />
-        Advanced options
+        {t("loader.advanced")}
       </button>
 
       {showAdvanced && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <FieldGroup label="Format override">
+          <FieldGroup label={t("loader.formatOverride")}>
             <select
               value={format}
               onChange={(e) => setFormat(e.target.value)}
               style={selectStyle}
             >
-              <option value="">Auto-detect</option>
+              <option value="">{t("loader.autoDetect")}</option>
               <option value="turtle">Turtle (.ttl)</option>
               <option value="xml">RDF/XML (.rdf, .owl)</option>
               <option value="nt">N-Triples (.nt)</option>
               <option value="json-ld">JSON-LD (.jsonld)</option>
             </select>
           </FieldGroup>
-          <FieldGroup label="Custom display name">
-            <Input value={customName} onChange={setCustomName} placeholder="Leave blank to use ontology title" />
+          <FieldGroup label={t("loader.displayName")}>
+            <Input value={customName} onChange={setCustomName} placeholder={t("loader.displayNamePlaceholder")} />
           </FieldGroup>
-          <FieldGroup label="Description">
-            <Input value={description} onChange={setDescription} placeholder="Optional description" />
+          <FieldGroup label={t("loader.description")}>
+            <Input value={description} onChange={setDescription} placeholder={t("loader.descriptionPlaceholder")} />
           </FieldGroup>
-          <FieldGroup label="Tags (comma-separated)">
-            <Input value={tags} onChange={setTags} placeholder="e.g. biology, upper-ontology" />
+          <FieldGroup label={t("loader.tags")}>
+            <Input value={tags} onChange={setTags} placeholder={t("loader.tagsPlaceholder")} />
           </FieldGroup>
         </div>
       )}
@@ -398,8 +399,8 @@ function FileUploadPanel({ onLoaded }: { onLoaded: () => void }) {
         body: JSON.stringify({ content, ...(format ? { format } : {}) }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Load failed" }));
-        throw new Error(err.detail || "Load failed");
+        const err = await res.json().catch(() => ({ detail: t("loader.loadFailed") }));
+        throw new Error(err.detail || t("loader.loadFailed"));
       }
       setLoadState("success");
       setTimeout(() => {
@@ -408,7 +409,7 @@ function FileUploadPanel({ onLoaded }: { onLoaded: () => void }) {
       }, 1200);
     } catch (e) {
       setLoadState("error");
-      setErrorMsg(e instanceof Error ? e.message : "Load failed");
+      setErrorMsg(e instanceof Error ? e.message : t("loader.loadFailed"));
     }
   };
 
@@ -450,7 +451,7 @@ function FileUploadPanel({ onLoaded }: { onLoaded: () => void }) {
       </div>
 
       {content && (
-        <FieldGroup label="Format">
+        <FieldGroup label={t("loader.format")}>
           <select
             value={format}
             onChange={(e) => setFormat(e.target.value)}
@@ -492,7 +493,7 @@ function FileUploadPanel({ onLoaded }: { onLoaded: () => void }) {
           ) : (
             <>
               <FileUp size={13} />
-              Load File
+              {t("loader.loadFile")}
             </>
           )}
         </button>
@@ -535,8 +536,8 @@ function CreateNewPanel({ onLoaded }: { onLoaded: () => void }) {
         }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Create failed" }));
-        throw new Error(err.detail || "Create failed");
+        const err = await res.json().catch(() => ({ detail: t("loader.createFailed") }));
+        throw new Error(err.detail || t("loader.createFailed"));
       }
       setCreateState("success");
       setTimeout(() => {
@@ -545,7 +546,7 @@ function CreateNewPanel({ onLoaded }: { onLoaded: () => void }) {
       }, 1200);
     } catch (e) {
       setCreateState("error");
-      setErrorMsg(e instanceof Error ? e.message : "Create failed");
+      setErrorMsg(e instanceof Error ? e.message : t("loader.createFailed"));
     }
   };
 
@@ -566,24 +567,24 @@ function CreateNewPanel({ onLoaded }: { onLoaded: () => void }) {
         ))}
       </div>
 
-      <FieldGroup label="Display Name *">
-        <Input value={name} onChange={setName} placeholder="My Ontology" />
+      <FieldGroup label={t("loader.nameRequired")}>
+        <Input value={name} onChange={setName} placeholder={t("loader.namePlaceholder")} />
       </FieldGroup>
 
-      <FieldGroup label="Namespace URI *">
+      <FieldGroup label={t("loader.namespaceRequired")}>
         <Input value={namespace} onChange={setNamespace} placeholder="https://example.org/onto/" />
       </FieldGroup>
 
-      <FieldGroup label="Description">
-        <Input value={description} onChange={setDescription} placeholder="Optional description" />
+      <FieldGroup label={t("loader.description")}>
+        <Input value={description} onChange={setDescription} placeholder={t("loader.descriptionPlaceholder")} />
       </FieldGroup>
 
-      <FieldGroup label="Tags (comma-separated)">
-        <Input value={tags} onChange={setTags} placeholder="e.g. internal, draft" />
+      <FieldGroup label={t("loader.tags")}>
+        <Input value={tags} onChange={setTags} placeholder={t("loader.tagsInternalPlaceholder")} />
       </FieldGroup>
 
       {createMode === "data" && (
-        <FieldGroup label="Sample Data (JSON or CSV)">
+        <FieldGroup label={t("loader.sampleData")}>
           <Textarea
             value={sampleData}
             onChange={setSampleData}
@@ -594,11 +595,11 @@ function CreateNewPanel({ onLoaded }: { onLoaded: () => void }) {
       )}
 
       {createMode === "text" && (
-        <FieldGroup label="Schema Requirements (natural language)">
+        <FieldGroup label={t("loader.schemaText")}>
           <Textarea
             value={schemaText}
             onChange={setSchemaText}
-            placeholder="Describe the ontology you need. E.g.: I need an ontology for a hospital domain with patients, doctors, appointments, and medications."
+            placeholder={t("loader.schemaPlaceholder")}
             rows={6}
           />
         </FieldGroup>
@@ -627,7 +628,7 @@ function CreateNewPanel({ onLoaded }: { onLoaded: () => void }) {
           {createState === "loading" ? (
             <>
               <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />
-              Creating…
+              {t("loader.creating")}
             </>
           ) : (
             <>
@@ -700,7 +701,7 @@ export function OntologyLoader({ onLoaded, onClose }: LoaderProps) {
 const overlayStyle: React.CSSProperties = {
   position: "fixed",
   inset: 0,
-  background: "rgba(3,9,18,0.78)",
+  background: "rgba(12,12,12,0.78)",
   backdropFilter: "blur(6px)",
   display: "flex",
   alignItems: "center",
@@ -715,8 +716,8 @@ const modalStyle: React.CSSProperties = {
   flexDirection: "column",
   borderRadius: 20,
   border: "1px solid rgba(127,208,255,0.16)",
-  background: "linear-gradient(180deg, rgba(11,21,34,0.98), rgba(6,13,22,0.96))",
-  boxShadow: "0 32px 80px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)",
+  background: "linear-gradient(145deg, #2A2A2A 0%, #141414 14%, #080808 36%)",
+  boxShadow: "0 32px 80px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.16)",
   overflow: "hidden",
 };
 

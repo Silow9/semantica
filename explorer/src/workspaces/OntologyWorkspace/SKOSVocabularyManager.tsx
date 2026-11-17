@@ -91,9 +91,9 @@ function ConceptDetailPanel({
     let ignore = false;
     fetch(`/api/ontology/skos/concept/${encodeURIComponent(uri)}`)
       .then(async (r) => {
-        if (!r.ok) throw new Error("Concept not found");
+        if (!r.ok) throw new Error(t("skos.conceptNotFound"));
         const data = await r.json();
-        if (r.status === 207) setError(data.message || "Warning: Partial success loading concept.");
+        if (r.status === 207) setError(data.message || t("skos.partialConcept"));
         return data;
       })
       .then((data) => {
@@ -367,7 +367,7 @@ function SchemePanel({
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = await r.json();
-        if (r.status === 207 && !ignore) setError(data.message || "Warning: Partial success loading hierarchy.");
+        if (r.status === 207 && !ignore) setError(data.message || t("skos.partialHierarchy"));
         return data;
       })
       .then((data) => {
@@ -376,7 +376,7 @@ function SchemePanel({
       .catch((err) => {
         if (!ignore) {
           setHierarchy([]);
-          setError(err instanceof Error ? err.message : "Failed to load hierarchy.");
+          setError(err instanceof Error ? err.message : t("skos.hierarchyFailed"));
         }
       })
       .finally(() => {
@@ -467,9 +467,9 @@ export function SKOSVocabularyManager({ schemeUri }: Props) {
   useEffect(() => {
     fetch("/api/ontology/skos/schemes")
       .then(async (r) => {
-        if (!r.ok) throw new Error(`Failed to load schemes (${r.status})`);
+        if (!r.ok) throw new Error(t("skos.schemesFailed", { status: r.status }));
         const data = await r.json();
-        if (r.status === 207) setError(data.message || "Warning: Partial success loading schemes.");
+        if (r.status === 207) setError(data.message || t("skos.partialSchemes"));
         return data;
       })
       .then(setSchemes)
@@ -522,10 +522,10 @@ export function SKOSVocabularyManager({ schemeUri }: Props) {
             <div style={{ ...centerStyle, textAlign: "center", padding: 28 }}>
               <BookOpen size={28} color="rgba(158,232,215,0.15)" />
               <span style={{ color: "#8fa8c6", fontSize: 12, marginTop: 10 }}>
-                No SKOS concept schemes found
+                {t("skos.noneFound")}
               </span>
               <span style={{ color: "#6a7f97", fontSize: 11, marginTop: 4, maxWidth: 220 }}>
-                Import a SKOS vocabulary to browse concepts here
+                {t("skos.importHint")}
               </span>
             </div>
           )}
@@ -607,7 +607,7 @@ const detailPanelStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   borderLeft: "1px solid rgba(127,208,255,0.1)",
-  background: "rgba(3,9,18,0.5)",
+  background: "rgba(12,12,12,0.5)",
   overflow: "hidden",
 };
 

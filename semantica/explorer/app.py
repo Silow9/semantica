@@ -142,8 +142,8 @@ def create_app(
             graph_library.close()
 
     app = FastAPI(
-        title="Semantica Knowledge Explorer",
-        description="Interactive dashboard API for exploring Semantica knowledge graphs.",
+        title="GianStrategy Knowledge Explorer",
+        description="Interactive dashboard API for exploring GianStrategy knowledge graphs.",
         version=__version__,
         lifespan=lifespan,
     )
@@ -234,7 +234,7 @@ def create_app(
         )
         return HTMLResponse(
             '<!doctype html><html lang="en"><head><meta charset="UTF-8">'
-            '<title>Semantica Knowledge Explorer</title>'
+            '<title>GianStrategy Knowledge Explorer</title>'
             '<style>body{font-family:sans-serif;padding:2rem;max-width:600px;margin:auto}'
             'code{background:#f4f4f4;padding:2px 6px;border-radius:3px}</style></head>'
             "<body><h2>Explorer UI not available</h2>"
@@ -256,7 +256,7 @@ def create_app(
     @app.get("/api/info")
     async def info():
         return {
-            "name": "Semantica Knowledge Explorer",
+            "name": "GianStrategy Knowledge Explorer",
             "version": __version__,
             "status": "active",
             "capabilities": explorer_capabilities(agent_memory),

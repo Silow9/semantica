@@ -16,7 +16,7 @@ const THEME_CSS = `
     display: flex;
     width: 100%;
     height: 100%;
-    background: #0d1117;
+    background: var(--ws-nested-bg);
     overflow: hidden;
   }
   .vocab-main {

@@ -48,8 +48,8 @@ export function SparqlWorkspace() {
           { token: "number", foreground: "f2b66d" },
         ],
         colors: {
-          "editor.background": "#050c18",
-          "editor.lineHighlightBackground": "#0a1628",
+          "editor.background": "#080808",
+          "editor.lineHighlightBackground": "#141414",
           "editorLineNumber.foreground": "#2a4060",
           "editorCursor.foreground": "#4aa3ff",
           "editor.selectionBackground": "#1e3a5a",

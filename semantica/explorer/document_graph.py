@@ -13,7 +13,7 @@ from .session import GraphSession
 CHUNK_CHARS = 2000
 NER_METHODS = ("llm", "ml", "pattern")
 _TAG = re.compile(r"<[^>]+>")
-_ROW_END = re.compile(r"</tr\s*>", re.IGNORECASE)
+_ROW_END = re.compile(r"</(?:tr|caption)\s*>", re.IGNORECASE)
 _CELL_END = re.compile(r"</t[dh]\s*>", re.IGNORECASE)
 
 

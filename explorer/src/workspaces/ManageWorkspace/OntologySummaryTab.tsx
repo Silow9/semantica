@@ -253,7 +253,7 @@ const shellStyle: React.CSSProperties = {
   flexDirection: "column",
   width: "100%",
   height: "100%",
-  background: "#0d1117",
+  background: "var(--ws-nested-bg)",
   overflow: "hidden",
 };
 

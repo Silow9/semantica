@@ -12,6 +12,19 @@ import {
   Minus,
   Edit,
 } from "lucide-react";
+import { t, useI18n } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
+
+const CHANGE_KEYS: Record<string, MessageKey> = {
+  added: "proposal.change.added",
+  removed: "proposal.change.removed",
+  modified: "proposal.change.modified",
+};
+
+function changeLabel(type: string) {
+  const key = CHANGE_KEYS[type];
+  return key ? t(key) : type;
+}
 
 interface Proposal {
   proposal_id: string;
@@ -31,10 +44,13 @@ interface Proposal {
 interface DiffChange {
   type: "added" | "removed" | "modified";
   element: string;
+  labelKey?: MessageKey;
+  count?: number;
   details?: Record<string, any>;
 }
 
 export function ProposalReview({ proposalId }: { proposalId: string }) {
+  const { t } = useI18n();
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [diff, setDiff] = useState<DiffChange[]>([]);
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
@@ -46,16 +62,16 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
     // Generate diff from impact analysis
     if (prop.impact_analysis) {
       if (prop.impact_analysis.class_adds > 0) {
-        changes.push({ type: "added", element: `Classes (${prop.impact_analysis.class_adds})` });
+        changes.push({ type: "added", element: "classes", labelKey: "proposal.diff.classes", count: prop.impact_analysis.class_adds });
       }
       if (prop.impact_analysis.class_removals > 0) {
-        changes.push({ type: "removed", element: `Classes (${prop.impact_analysis.class_removals})` });
+        changes.push({ type: "removed", element: "classes", labelKey: "proposal.diff.classes", count: prop.impact_analysis.class_removals });
       }
       if (prop.impact_analysis.property_changes > 0) {
-        changes.push({ type: "modified", element: `Properties (${prop.impact_analysis.property_changes})` });
+        changes.push({ type: "modified", element: "properties", labelKey: "proposal.diff.properties", count: prop.impact_analysis.property_changes });
       }
       if (prop.impact_analysis.restriction_changes > 0) {
-        changes.push({ type: "modified", element: `Restrictions (${prop.impact_analysis.restriction_changes})` });
+        changes.push({ type: "modified", element: "restrictions", labelKey: "proposal.diff.restrictions", count: prop.impact_analysis.restriction_changes });
       }
     }
 
@@ -113,7 +129,7 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
       }
     } catch (error) {
       console.error("Failed to add comment:", error);
-      alert("Failed to add comment");
+      alert(t("proposal.commentFailed"));
     }
   }, [selectedElement, commentText, proposal, loadProposal]);
 
@@ -124,12 +140,12 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
         method: "POST",
       });
       if (response.ok) {
-        alert("Proposal approved");
+        alert(t("proposal.approved"));
         loadProposal();
       }
     } catch (error) {
       console.error("Failed to approve proposal:", error);
-      alert("Failed to approve proposal");
+      alert(t("proposal.approveFailed"));
     }
   }, [proposal, loadProposal]);
 
@@ -140,12 +156,12 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
         method: "POST",
       });
       if (response.ok) {
-        alert("Proposal rejected");
+        alert(t("proposal.rejected"));
         loadProposal();
       }
     } catch (error) {
       console.error("Failed to reject proposal:", error);
-      alert("Failed to reject proposal");
+      alert(t("proposal.rejectFailed"));
     }
   }, [proposal, loadProposal]);
 
@@ -156,12 +172,12 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
         method: "POST",
       });
       if (response.ok) {
-        alert("Proposal published");
+        alert(t("proposal.published"));
         loadProposal();
       }
     } catch (error) {
       console.error("Failed to publish proposal:", error);
-      alert("Failed to publish proposal");
+      alert(t("proposal.publishFailed"));
     }
   }, [proposal, loadProposal]);
 
@@ -197,7 +213,7 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
     display: "flex",
     flexDirection: "column",
     height: "100%",
-    background: "#07111f",
+    background: "var(--ws-nested-bg)",
     padding: "20px",
     overflow: "auto",
   };
@@ -227,7 +243,7 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
 
   const diffPanelStyle: React.CSSProperties = {
     flex: 1,
-    background: "rgba(9, 19, 34, 0.8)",
+    background: "rgba(28, 28, 28, 0.8)",
     borderRadius: "8px",
     border: "1px solid rgba(127, 208, 255, 0.12)",
     padding: "16px",
@@ -236,7 +252,7 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
 
   const commentsPanelStyle: React.CSSProperties = {
     width: "320px",
-    background: "rgba(9, 19, 34, 0.8)",
+    background: "rgba(28, 28, 28, 0.8)",
     borderRadius: "8px",
     border: "1px solid rgba(127, 208, 255, 0.12)",
     padding: "16px",
@@ -250,7 +266,7 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
     gap: "10px",
     padding: "10px 12px",
     borderRadius: "6px",
-    background: "rgba(3, 9, 18, 0.6)",
+    background: "rgba(12, 12, 12, 0.6)",
     marginBottom: "8px",
     cursor: "pointer",
     transition: "160ms ease",
@@ -276,7 +292,7 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
     padding: "10px 12px",
     borderRadius: "6px",
     border: "1px solid rgba(127, 208, 255, 0.2)",
-    background: "rgba(3, 9, 18, 0.8)",
+    background: "rgba(12, 12, 12, 0.8)",
     color: "#ebf3ff",
     fontSize: "13px",
     resize: "vertical",
@@ -286,7 +302,7 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
   if (!proposal) {
     return (
       <div style={containerStyle}>
-        <div style={{ color: "#8fa8c6", fontSize: "14px" }}>Loading proposal...</div>
+        <div style={{ color: "#8fa8c6", fontSize: "14px" }}>{t("proposal.loading")}</div>
       </div>
     );
   }
@@ -308,18 +324,18 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
             <>
               <button style={buttonStyle} onClick={approveProposal}>
                 <CheckCircle size={12} />
-                Approve
+                {t("proposal.approve")}
               </button>
               <button style={buttonStyle} onClick={rejectProposal}>
                 <XCircle size={12} />
-                Reject
+                {t("proposal.reject")}
               </button>
             </>
           )}
           {proposal.state === "approved" && (
             <button style={buttonStyle} onClick={publishProposal}>
               <Send size={12} />
-              Publish
+              {t("proposal.publish")}
             </button>
           )}
         </div>
@@ -329,10 +345,10 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
         <div style={diffPanelStyle}>
           <h2 style={{ margin: "0 0 16px", color: "#ebf3ff", fontSize: "14px", fontWeight: "600" }}>
             <GitMerge size={16} style={{ marginRight: "8px", verticalAlign: "middle" }} />
-            Diff Viewer
+            {t("proposal.diff")}
           </h2>
           {diff.length === 0 ? (
-            <div style={{ color: "#8fa8c6", fontSize: "13px" }}>No changes detected</div>
+            <div style={{ color: "#8fa8c6", fontSize: "13px" }}>{t("proposal.noChanges")}</div>
           ) : (
             diff.map((change, index) => (
               <div
@@ -346,10 +362,10 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
                 {getChangeIcon(change.type)}
                 <div style={{ flex: 1 }}>
                   <div style={{ color: "#ebf3ff", fontSize: "13px", fontWeight: "600" }}>
-                    {change.element}
+                    {change.labelKey ? t(change.labelKey, { count: change.count ?? 0 }) : change.element}
                   </div>
                   <div style={{ color: "#8fa8c6", fontSize: "11px" }}>
-                    {change.type}
+                    {changeLabel(change.type)}
                   </div>
                 </div>
               </div>
@@ -358,18 +374,18 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
 
           <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid rgba(140, 192, 255, 0.12)" }}>
             <h3 style={{ margin: "0 0 12px", color: "#ebf3ff", fontSize: "13px", fontWeight: "600" }}>
-              Impact Analysis
+              {t("proposal.impact")}
             </h3>
-            <pre style={{ background: "rgba(3, 9, 18, 0.8)", padding: "12px", borderRadius: "6px", color: "#ebf3ff", fontSize: "12px", overflow: "auto" }}>
+            <pre style={{ background: "rgba(12, 12, 12, 0.8)", padding: "12px", borderRadius: "6px", color: "#ebf3ff", fontSize: "12px", overflow: "auto" }}>
               {JSON.stringify(proposal.impact_analysis, null, 2)}
             </pre>
           </div>
 
           <div style={{ marginTop: "16px" }}>
             <h3 style={{ margin: "0 0 12px", color: "#ebf3ff", fontSize: "13px", fontWeight: "600" }}>
-              SHACL Validation
+              {t("proposal.shacl")}
             </h3>
-            <pre style={{ background: "rgba(3, 9, 18, 0.8)", padding: "12px", borderRadius: "6px", color: "#ebf3ff", fontSize: "12px", overflow: "auto" }}>
+            <pre style={{ background: "rgba(12, 12, 12, 0.8)", padding: "12px", borderRadius: "6px", color: "#ebf3ff", fontSize: "12px", overflow: "auto" }}>
               {JSON.stringify(proposal.shacl_validation, null, 2)}
             </pre>
           </div>
@@ -378,18 +394,18 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
         <div style={commentsPanelStyle}>
           <h2 style={{ margin: "0 0 16px", color: "#ebf3ff", fontSize: "14px", fontWeight: "600" }}>
             <MessageSquare size={16} style={{ marginRight: "8px", verticalAlign: "middle" }} />
-            Comments ({proposal.comments.length})
+            {t("proposal.comments", { count: proposal.comments.length })}
           </h2>
           <div style={{ flex: 1, overflow: "auto", marginBottom: "12px" }}>
             {proposal.comments.length === 0 ? (
-              <div style={{ color: "#8fa8c6", fontSize: "13px" }}>No comments yet</div>
+              <div style={{ color: "#8fa8c6", fontSize: "13px" }}>{t("proposal.none")}</div>
             ) : (
               proposal.comments.map((comment) => (
                 <div
                   key={comment.id}
                   style={{
                     padding: "10px",
-                    background: "rgba(3, 9, 18, 0.6)",
+                    background: "rgba(12, 12, 12, 0.6)",
                     borderRadius: "6px",
                     marginBottom: "8px",
                   }}
@@ -411,14 +427,14 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
           {selectedElement && (
             <div>
               <textarea
-                placeholder="Add a comment..."
+                placeholder={t("proposal.placeholder")}
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 style={textareaStyle}
               />
               <button style={buttonStyle} onClick={addComment} disabled={!commentText}>
                 <Send size={12} />
-                Add Comment
+                {t("proposal.add")}
               </button>
             </div>
           )}

@@ -156,7 +156,7 @@ class TestHealthInfo:
         response = client.get("/api/info")
         assert response.status_code == 200
         payload = response.json()
-        assert payload["name"] == "Semantica Knowledge Explorer"
+        assert payload["name"] == "GianStrategy Knowledge Explorer"
         assert payload["status"] == "active"
         assert payload["version"]
 

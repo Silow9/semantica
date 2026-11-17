@@ -15,6 +15,7 @@ import {
   ToggleRight,
 } from "lucide-react";
 import { useI18n } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
 import { OntologyLoader } from "./OntologyLoader";
 import { OntologySearch } from "./OntologySearch";
 import { SKOSVocabularyManager } from "./SKOSVocabularyManager";
@@ -43,6 +44,20 @@ const STATUS_COLORS: Record<string, string> = {
   external: "#58a6ff",
 };
 
+const STATUS_KEYS: Record<string, MessageKey> = {
+  published: "onto.status.published",
+  draft: "onto.status.draft",
+  external: "onto.status.external",
+};
+
+const FILTER_KEYS = {
+  all: "onto.all",
+  owl: "onto.filter.owl",
+  skos: "onto.filter.skos",
+  internal: "onto.filter.internal",
+  external: "onto.filter.external",
+} as const satisfies Record<string, MessageKey>;
+
 const FORMAT_COLORS: Record<string, string> = {
   turtle: "#9ee8d7",
   xml: "#ff9daf",
@@ -52,7 +67,9 @@ const FORMAT_COLORS: Record<string, string> = {
 };
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useI18n();
   const color = STATUS_COLORS[status] || "#6a7f97";
+  const labelKey = STATUS_KEYS[status];
   return (
     <span
       style={{
@@ -67,7 +84,7 @@ function StatusBadge({ status }: { status: string }) {
         color,
       }}
     >
-      {status}
+      {labelKey ? t(labelKey) : status}
     </span>
   );
 }
@@ -138,7 +155,7 @@ function RegistryRow({
 
   const handleRemove = async (ev: React.MouseEvent) => {
     ev.stopPropagation();
-    if (!window.confirm(`Remove "${entry.name}" from the registry?`)) return;
+    if (!window.confirm(t("onto.removeConfirm", { name: entry.name }))) return;
     setBusyRemove(true);
     await onRemove(entry.uri);
     setBusyRemove(false);
@@ -183,14 +200,14 @@ function RegistryRow({
       </div>
 
       <div style={rowStatsStyle}>
-        <Stat value={entry.class_count} label="Classes" />
-        <Stat value={entry.concept_count} label="Concepts" />
-        <Stat value={entry.property_count} label="Props" />
+        <Stat value={entry.class_count} label={t("onto.classes")} />
+        <Stat value={entry.concept_count} label={t("onto.concepts")} />
+        <Stat value={entry.property_count} label={t("onto.props")} />
       </div>
 
       <div style={rowActionsStyle}>
         <button
-          title={entry.enabled ? "Disable" : "Enable"}
+          title={entry.enabled ? t("onto.disable") : t("onto.enable")}
           onClick={handleToggle}
           disabled={busyToggle}
           style={actionBtnStyle}
@@ -206,7 +223,7 @@ function RegistryRow({
 
         {entry.source_url && (
           <button
-            title="Re-fetch from source URL"
+            title={t("onto.refreshTitle")}
             onClick={handleRefresh}
             disabled={busyRefresh}
             style={actionBtnStyle}
@@ -220,7 +237,7 @@ function RegistryRow({
         )}
 
         <button
-          title="Remove from registry"
+          title={t("onto.removeTitle")}
           onClick={handleRemove}
           disabled={busyRemove}
           style={{ ...actionBtnStyle, color: "#ff9daf" }}
@@ -273,10 +290,10 @@ export function OntologyManager() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setEntries(data);
-      if (res.status === 207) flashMsg("err", data.message || "Warning: Partial success loading registry.");
+      if (res.status === 207) flashMsg("err", data.message || t("onto.partialRegistry"));
     } catch {
       setEntries([]);
-      flashMsg("err", "Failed to load ontology registry");
+      flashMsg("err", t("onto.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -293,11 +310,11 @@ export function OntologyManager() {
         const data = await res.json();
         if (ignore) return;
         setEntries(data);
-        if (res.status === 207) flashMsg("err", data.message || "Warning: Partial success loading registry.");
+        if (res.status === 207) flashMsg("err", data.message || t("onto.partialRegistry"));
       } catch {
         if (!ignore) {
           setEntries([]);
-          flashMsg("err", "Failed to load ontology registry");
+          flashMsg("err", t("onto.loadFailed"));
         }
       } finally {
         if (!ignore) setLoading(false);
@@ -318,7 +335,7 @@ export function OntologyManager() {
         prev.map((e) => (e.uri === uri ? { ...e, enabled: data.enabled } : e))
       );
     } catch {
-      flashMsg("err", "Could not toggle ontology");
+      flashMsg("err", t("onto.toggleFailed"));
     }
   }, []);
 
@@ -328,10 +345,10 @@ export function OntologyManager() {
         method: "POST",
       });
       if (!res.ok) throw new Error("Refresh failed");
-      flashMsg("ok", "Ontology refreshed");
+      flashMsg("ok", t("onto.refreshed"));
       fetchRegistry();
     } catch {
-      flashMsg("err", "Refresh failed — check source URL");
+      flashMsg("err", t("onto.refreshFailed"));
     }
   }, [fetchRegistry]);
 
@@ -343,9 +360,9 @@ export function OntologyManager() {
       if (!res.ok) throw new Error("Remove failed");
       setEntries((prev) => prev.filter((e) => e.uri !== uri));
       if (selectedEntry?.uri === uri) setSelectedEntry(null);
-      flashMsg("ok", "Removed from registry");
+      flashMsg("ok", t("onto.removed"));
     } catch {
-      flashMsg("err", "Could not remove ontology");
+      flashMsg("err", t("onto.removeFailed"));
     }
   }, [selectedEntry]);
 
@@ -401,7 +418,7 @@ export function OntologyManager() {
                   ...(statusFilter === f ? filterPillActive : filterPillIdle),
                 }}
               >
-                {f === "all" ? t("onto.all") : f.toUpperCase()}
+                {t(FILTER_KEYS[f])}
               </button>
             ))}
           </div>
@@ -520,7 +537,7 @@ export function OntologyManager() {
                       style={browseBtnStyle}
                     >
                       <BookOpen size={12} />
-                      Browse SKOS
+                      {t("onto.browseSkos")}
                     </button>
                   )}
                   <button onClick={() => setSelectedEntry(null)} style={closePanelBtnStyle}>×</button>
@@ -533,14 +550,14 @@ export function OntologyManager() {
                   </span>
                 </DetailSection>
                 {selectedEntry.description && (
-                  <DetailSection label="Description">
+                  <DetailSection label={t("onto.description")}>
                     <span style={{ color: "#c6d4e3", fontSize: 13, lineHeight: 1.6 }}>
                       {selectedEntry.description}
                     </span>
                   </DetailSection>
                 )}
                 {selectedEntry.source_url && (
-                  <DetailSection label="Source URL">
+                  <DetailSection label={t("onto.sourceUrl")}>
                     <a
                       href={selectedEntry.source_url}
                       target="_blank"
@@ -552,24 +569,24 @@ export function OntologyManager() {
                   </DetailSection>
                 )}
                 {selectedEntry.version && (
-                  <DetailSection label="Version">
+                  <DetailSection label={t("onto.version")}>
                     <span style={{ color: "#c6d4e3", fontSize: 12 }}>{selectedEntry.version}</span>
                   </DetailSection>
                 )}
                 {selectedEntry.loaded_at && (
-                  <DetailSection label="Loaded at">
+                  <DetailSection label={t("onto.loadedAt")}>
                     <span style={{ color: "#c6d4e3", fontSize: 12 }}>
                       {new Date(selectedEntry.loaded_at).toLocaleString()}
                     </span>
                   </DetailSection>
                 )}
                 <div style={statRowStyle}>
-                  <StatBlock value={selectedEntry.class_count} label="Classes" color="#d2a8ff" />
-                  <StatBlock value={selectedEntry.concept_count} label="Concepts" color="#9ee8d7" />
-                  <StatBlock value={selectedEntry.property_count} label="Properties" color="#f2b66d" />
+                  <StatBlock value={selectedEntry.class_count} label={t("onto.classes")} color="#d2a8ff" />
+                  <StatBlock value={selectedEntry.concept_count} label={t("onto.concepts")} color="#9ee8d7" />
+                  <StatBlock value={selectedEntry.property_count} label={t("onto.properties")} color="#f2b66d" />
                 </div>
                 {selectedEntry.tags.length > 0 && (
-                  <DetailSection label="Tags">
+                  <DetailSection label={t("onto.tags")}>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {selectedEntry.tags.map((tag) => (
                         <span key={tag} style={tagChipStyle}>{tag}</span>
@@ -588,7 +605,7 @@ export function OntologyManager() {
                 <div style={{ display: "flex", gap: 6 }}>
                   <button onClick={() => setRightPanel("none")} style={browseBtnStyle}>
                     <Layers size={12} />
-                    Registry Detail
+                    {t("onto.registryDetail")}
                   </button>
                   <button onClick={() => setRightPanel("none")} style={closePanelBtnStyle}>×</button>
                 </div>
@@ -631,7 +648,7 @@ const shellStyle: React.CSSProperties = {
   flexDirection: "column",
   width: "100%",
   height: "100%",
-  background: "#0a1525",
+  background: "var(--ws-nested-bg)",
   overflow: "hidden",
 };
 
@@ -641,7 +658,7 @@ const toolbarStyle: React.CSSProperties = {
   gap: 10,
   padding: "12px 18px",
   borderBottom: "1px solid rgba(127,208,255,0.1)",
-  background: "rgba(5,12,22,0.72)",
+  background: "rgba(12,12,12,0.72)",
   flexWrap: "wrap",
   flexShrink: 0,
 };
@@ -835,7 +852,7 @@ const rightPanelStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   borderLeft: "1px solid rgba(127,208,255,0.1)",
-  background: "rgba(5,12,22,0.6)",
+  background: "rgba(12,12,12,0.6)",
   overflow: "hidden",
 };
 

@@ -9,7 +9,18 @@ import {
   validateShacl,
 } from "./api";
 import type { OntologyEntry, ShaclShapeSummary, ShaclValidationResponse } from "./types";
-import { useI18n } from "../../i18n";
+import { t, useI18n } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
+
+const UNTARGETED_SHAPES = "\0untargeted";
+
+const SHACL_STATUS_KEYS: Record<string, MessageKey> = {
+  success: "health.status.success",
+  error: "health.status.error",
+  unavailable: "health.status.unavailable",
+  ok: "health.status.ok",
+  warning: "health.status.warning",
+};
 
 interface ShaclStudioProps {
   onJumpToNode?: (nodeId: string) => void;
@@ -37,7 +48,7 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load ontology registry.");
+        setError(err instanceof Error ? err.message : t("shacl.loadRegistryFailed"));
       });
     return () => {
       cancelled = true;
@@ -94,7 +105,7 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
       setShapes(shapeData.shapes);
       setValidation(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not generate SHACL.");
+      setError(err instanceof Error ? err.message : t("shacl.generateFailed"));
     } finally {
       setLoading(false);
     }
@@ -129,7 +140,7 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
     try {
       setValidation(await validateShacl(selectedUri, shacl));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not validate SHACL.");
+      setError(err instanceof Error ? err.message : t("shacl.validateFailed"));
     } finally {
       setLoading(false);
     }
@@ -138,7 +149,7 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
   const groupedShapes = useMemo(() => {
     const groups = new Map<string, ShaclShapeSummary[]>();
     for (const shape of shapes) {
-      const key = shape.target_class || "Untargeted shapes";
+      const key = shape.target_class || UNTARGETED_SHAPES;
       groups.set(key, [...(groups.get(key) || []), shape]);
     }
     return Array.from(groups.entries());
@@ -181,7 +192,7 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
           { token: "delimiter", foreground: "8fa8c6" },
         ],
         colors: {
-          "editor.background": "#050b13",
+          "editor.background": "#080808",
           "editor.foreground": "#d7e7f8",
           "editorLineNumber.foreground": "#41536b",
         },
@@ -197,10 +208,7 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
         <div>
           <div style={kickerStyle}><Shield size={14} /> {t("shacl.kicker")}</div>
           <h2 style={titleStyle}>{t("shacl.title")}</h2>
-          <p style={textStyle}>
-            Create strict SHACL Turtle from ontology structure, inspect shape targets,
-            run validation, and jump from violations back into the graph.
-          </p>
+          <p style={textStyle}>{t("shacl.intro")}</p>
         </div>
         <div style={selectorShellStyle}>
           <label style={labelStyle}>{t("shacl.ontology")}</label>
@@ -217,7 +225,7 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
           <div style={panelHeaderStyle}>
             <h3 style={sectionTitleStyle}>{t("shacl.library")}</h3>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span style={countBadgeStyle}>{shapes.length} shapes</span>
+              <span style={countBadgeStyle}>{t("shacl.count", { count: shapes.length })}</span>
               {selectedShapeId ? (
                 <button style={smallButtonStyle} onClick={handleShowAllShapes}>{t("shacl.viewAll")}</button>
               ) : null}
@@ -226,7 +234,7 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
           <div style={shapeListStyle}>
             {groupedShapes.map(([target, items]) => (
               <div key={target} style={shapeGroupStyle}>
-                <div style={shapeTargetStyle}>{target}</div>
+                <div style={shapeTargetStyle}>{target === UNTARGETED_SHAPES ? t("shacl.untargeted") : target}</div>
                 {items.map((shape) => {
                   const isSelected = selectedShapeId === shape.id;
                   return (
@@ -247,7 +255,7 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
                       <div>
                         <div style={{ color: "#ebf3ff", fontWeight: 800 }}>{shape.id}</div>
                         <div style={mutedStyle}>
-                          {shape.constraint_count} constraints
+                          {t("shacl.constraints", { count: shape.constraint_count })}
                           {shape.constraints.length ? ` · ${shape.constraints.join(", ")}` : ""}
                         </div>
                       </div>
@@ -264,7 +272,7 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
         <section style={editorShellStyle}>
           <div style={panelHeaderStyle}>
             <h3 style={sectionTitleStyle}>
-              {selectedShapeId ? selectedShapeId : "Turtle shape editor"}
+              {selectedShapeId ? selectedShapeId : t("shacl.editor")}
             </h3>
             <div style={{ display: "flex", gap: 8 }}>
               <button style={secondaryButtonStyle} disabled={loading} onClick={handleGenerate}><Wand2 size={14} /> {t("shacl.generate")}</button>
@@ -297,11 +305,11 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
       <section style={cardStyle}>
         <div style={panelHeaderStyle}>
           <h3 style={sectionTitleStyle}>{t("shacl.report")}</h3>
-          {validation ? <span style={validationBadgeStyle(validation.status, validation.conforms)}>{validation.status}{validation.conforms ? " · conforms" : ""}</span> : null}
+          {validation ? <span style={validationBadgeStyle(validation.status, validation.conforms)}>{shaclStatusLabel(validation.status)}{validation.conforms ? ` · ${t("shacl.conforms")}` : ""}</span> : null}
         </div>
         {validation ? (
           <>
-            <p style={textStyle}>{validation.message}</p>
+            <p style={textStyle}>{localizeShaclMessage(validation.message)}</p>
             <div style={shapeListStyle}>
               {validation.violations.map((violation, index) => {
                 const nodeId = violation.focus_node || violation.node;
@@ -314,7 +322,7 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
                     </div>
                     {nodeId ? (
                       <button style={smallButtonStyle} onClick={() => onJumpToNode?.(nodeId)}>
-                        Jump to Node
+                        {t("shacl.jump")}
                       </button>
                     ) : null}
                   </div>
@@ -331,21 +339,42 @@ export function ShaclStudio({ onJumpToNode }: ShaclStudioProps) {
   );
 }
 
+function shaclStatusLabel(status: string) {
+  const messageKey = SHACL_STATUS_KEYS[status];
+  return messageKey ? t(messageKey) : status;
+}
+
+function localizeShaclMessage(message: string) {
+  if (message === "Graph conforms to SHACL shapes.") return t("shacl.msg.conforms");
+  const found = message.match(/^SHACL validation found (.+)\.$/);
+  if (!found) return message;
+  const parts = found[1].split(", ").map((part) => {
+    const violations = part.match(/^(\d+) violation\(s\)$/);
+    if (violations) return t("shacl.msg.violations", { count: violations[1] });
+    const warnings = part.match(/^(\d+) warning\(s\)$/);
+    if (warnings) return t("shacl.msg.warnings", { count: warnings[1] });
+    const infos = part.match(/^(\d+) info result\(s\)$/);
+    if (infos) return t("shacl.msg.infos", { count: infos[1] });
+    return part;
+  });
+  return t("shacl.msg.found", { detail: parts.join(t("health.detail.joiner")) });
+}
+
 function validationBadgeStyle(status: string, conforms: boolean): CSSProperties {
   const color = status === "unavailable" ? "#f2b66d" : conforms ? "#7ce7d3" : "#ff9daf";
   return { color, border: `1px solid ${color}35`, background: `${color}14`, borderRadius: 999, padding: "4px 9px", fontSize: 11, fontWeight: 900, textTransform: "uppercase" };
 }
 
 const pageStyle: CSSProperties = { height: "100%", overflow: "auto", padding: 22, display: "flex", flexDirection: "column", gap: 16 };
-const heroStyle: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 18, padding: 22, border: "1px solid rgba(127,208,255,0.12)", borderRadius: 22, background: "linear-gradient(135deg, rgba(11,25,42,0.94), rgba(7,14,25,0.9))" };
+const heroStyle: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 18, padding: 22, border: "1px solid rgba(232,234,237,0.16)", borderRadius: 22, background: "linear-gradient(145deg, #2A2A2A 0%, #141414 14%, #080808 36%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.16)" };
 const kickerStyle: CSSProperties = { display: "inline-flex", gap: 8, alignItems: "center", color: "#9ee8d7", fontSize: 11, fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" };
 const titleStyle: CSSProperties = { margin: "8px 0", color: "#ebf3ff", fontSize: 26, letterSpacing: "-0.04em" };
 const textStyle: CSSProperties = { margin: 0, color: "#8fa8c6", lineHeight: 1.6, maxWidth: 680 };
 const selectorShellStyle: CSSProperties = { minWidth: 320 };
 const labelStyle: CSSProperties = { display: "block", color: "#6a7f97", fontSize: 11, fontWeight: 800, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" };
-const inputStyle: CSSProperties = { width: "100%", boxSizing: "border-box", border: "1px solid rgba(127,208,255,0.14)", borderRadius: 12, padding: "10px 12px", background: "rgba(3,9,18,0.8)", color: "#ebf3ff" };
+const inputStyle: CSSProperties = { width: "100%", boxSizing: "border-box", border: "1px solid rgba(127,208,255,0.14)", borderRadius: 12, padding: "10px 12px", background: "rgba(12,12,12,0.8)", color: "#ebf3ff" };
 const gridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "360px minmax(0, 1fr)", gap: 16, minHeight: 560 };
-const cardStyle: CSSProperties = { padding: 18, border: "1px solid rgba(127,208,255,0.12)", borderRadius: 20, background: "rgba(9,19,34,0.78)" };
+const cardStyle: CSSProperties = { padding: 18, border: "1px solid rgba(232,234,237,0.16)", borderRadius: 20, background: "#080808", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.16)" };
 const editorShellStyle: CSSProperties = { ...cardStyle, display: "flex", flexDirection: "column", minHeight: 560 };
 const panelHeaderStyle: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 };
 const sectionTitleStyle: CSSProperties = { margin: 0, color: "#ebf3ff", fontSize: 16 };
@@ -355,7 +384,7 @@ const shapeGroupStyle: CSSProperties = { display: "flex", flexDirection: "column
 const shapeTargetStyle: CSSProperties = { color: "#6a7f97", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em" };
 const shapeRowStyle: CSSProperties = { display: "grid", gridTemplateColumns: "18px 1fr auto", gap: 10, padding: 10, borderRadius: 14, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(127,208,255,0.08)" };
 const violationBadgeStyle: CSSProperties = { color: "#f2b66d", fontWeight: 900 };
-const editorFrameStyle: CSSProperties = { flex: 1, minHeight: 0, border: "1px solid rgba(127,208,255,0.12)", borderRadius: 16, overflow: "hidden" };
+const editorFrameStyle: CSSProperties = { flex: 1, minHeight: 0, border: "1px solid rgba(232,234,237,0.16)", borderRadius: 16, overflow: "hidden" };
 const primaryButtonStyle: CSSProperties = { border: "1px solid rgba(124,231,211,0.35)", borderRadius: 12, padding: "9px 11px", background: "linear-gradient(135deg, rgba(20,151,136,0.55), rgba(74,163,255,0.35))", color: "#ebf3ff", fontWeight: 900, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 };
 const secondaryButtonStyle: CSSProperties = { ...primaryButtonStyle, background: "rgba(127,208,255,0.08)", borderColor: "rgba(127,208,255,0.18)" };
 const violationRowStyle: CSSProperties = { display: "grid", gridTemplateColumns: "1fr auto", gap: 12, padding: 12, borderRadius: 14, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(127,208,255,0.08)" };

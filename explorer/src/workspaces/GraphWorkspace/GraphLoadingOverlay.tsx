@@ -31,7 +31,7 @@ const LOADING_OVERLAY_CSS = `
     background:
       radial-gradient(circle at top right, rgba(242, 182, 109, 0.12), transparent 28%),
       radial-gradient(circle at top left, rgba(127, 208, 255, 0.14), transparent 30%),
-      linear-gradient(145deg, rgba(7, 17, 31, 0.94), rgba(12, 25, 43, 0.82));
+      linear-gradient(145deg, #2A2A2A 0%, #141414 14%, #080808 36%);
     box-shadow: 0 26px 90px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255,255,255,0.05);
     backdrop-filter: blur(18px) saturate(1.08);
     -webkit-backdrop-filter: blur(18px) saturate(1.08);
@@ -41,7 +41,7 @@ const LOADING_OVERLAY_CSS = `
     background:
       radial-gradient(circle at top right, rgba(242, 182, 109, 0.08), transparent 26%),
       radial-gradient(circle at top left, rgba(127, 208, 255, 0.12), transparent 28%),
-      linear-gradient(145deg, rgba(7, 17, 31, 0.84), rgba(11, 24, 40, 0.72));
+      linear-gradient(145deg, #2A2A2A 0%, #141414 14%, #080808 36%);
     box-shadow: 0 18px 54px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255,255,255,0.04);
   }
   .graph-stage-loader-beacon {
@@ -129,7 +129,7 @@ const LOADING_OVERLAY_CSS = `
     border-color: rgba(255, 123, 114, 0.32);
     background:
       radial-gradient(circle at top left, rgba(255, 123, 114, 0.12), transparent 32%),
-      linear-gradient(145deg, rgba(7, 17, 31, 0.96), rgba(24, 14, 18, 0.86));
+      linear-gradient(145deg, #2A2A2A 0%, #141414 14%, #080808 36%);
   }
   .graph-stage-loader-error-mark {
     width: 38px;
