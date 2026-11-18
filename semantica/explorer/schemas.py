@@ -320,6 +320,19 @@ class ReasoningResponse(BaseModel):
     mutated: bool = False
 
 
+class NaturalReasoningRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=8000)
+    apply_to_graph: bool = False
+    use_graph_facts: bool = False
+
+
+class NaturalReasoningResponse(ReasoningResponse):
+    facts: List[str] = Field(default_factory=list)
+    rules: List[str] = Field(default_factory=list)
+    answer: str = ""
+    reason: str = ""
+
+
 class ExportRequest(BaseModel):
     format: str = "json"
     node_ids: Optional[List[str]] = None

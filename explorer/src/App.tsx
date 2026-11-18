@@ -9,12 +9,8 @@ import {
   GitBranchPlus,
   GitMerge,
   Network,
-  Radar,
-  Route,
   Scale,
-  Search,
   Settings2,
-  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -23,6 +19,7 @@ import { fetchAgentMemoryAvailability } from './explorerCapabilities';
 import { hasOntologyUrlState } from './workspaces/OntologyWorkspace/ontologyUrlState';
 import { useI18n } from './i18n';
 import type { MessageKey } from './i18n/messages';
+import { LandingStarMap } from './LandingStarMap';
 
 const DecisionWorkspace = lazy(() => import('./workspaces/DecisionWorkspace/DecisionWorkspace').then((module) => ({ default: module.DecisionWorkspace })));
 const DocumentsWorkspace = lazy(() => import('./workspaces/DocumentsWorkspace/DocumentsWorkspace').then((module) => ({ default: module.DocumentsWorkspace })));
@@ -67,13 +64,6 @@ type LandingMetric = {
   tone?: 'cyan' | 'mint' | 'amber' | 'rose';
 };
 
-type LandingAction = {
-  label: string;
-  description: string;
-  icon: LucideIcon;
-  onClick: () => void;
-};
-
 type GraphStatsPayload = {
   node_count?: number;
   edge_count?: number;
@@ -85,20 +75,7 @@ type GraphStatsPayload = {
 
 type ConnectionStatus = 'checking' | 'online' | 'offline';
 
-const CONNECTION_STATUS_KEY: Record<ConnectionStatus, MessageKey> = {
-  checking: 'status.checking',
-  online: 'status.online',
-  offline: 'status.offline',
-};
-
 const queryClient = new QueryClient();
-
-const PREVIEW_DOTS = Array.from({ length: 42 }, (_, i) => ({
-  cx: 170 + ((i * 73) % 330),
-  cy: 170 + ((i * 47) % 210),
-  r: 2 + (i % 3),
-  fill: (['#56d364', '#58a6ff', '#f2b66d', '#ff9daf'] as const)[i % 4],
-}));
 
 const navItems: NavItem[] = [
   { id: 'explore', labelKey: 'nav.explore', hintKey: 'nav.exploreHint', icon: Database },
@@ -115,6 +92,14 @@ function readInitialWorkspace(): WorkspaceId {
 }
 
 const shellStyles = `
+  @font-face {
+    font-family: "Huangkai Hualu";
+    src: url("/fonts/huangkaihualushishouxieti.ttf") format("truetype");
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+  }
+
   :root {
     --app-bg: #080808;
     --panel-bg: #080808;
@@ -742,7 +727,7 @@ const shellStyles = `
     z-index: 1;
     width: min(1360px, 100%);
     margin: 0 auto;
-    padding: clamp(28px, 4vw, 56px) clamp(20px, 3vw, 48px);
+    padding: 4px clamp(20px, 3vw, 48px) clamp(20px, 3vw, 40px);
     display: flex;
     flex-direction: column;
     gap: 56px;
@@ -750,110 +735,38 @@ const shellStyles = `
 
   /* ── Hero ──────────────────────────────────────────────── */
   .landing-hero {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(380px, 520px);
-    gap: clamp(24px, 3vw, 48px);
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    min-height: min(580px, calc(100vh - 140px));
+    gap: 8px;
+  }
+
+  .landing-preview {
+    position: relative;
+    width: min(1120px, 100%);
+    margin: 0 auto;
   }
 
   .landing-copy {
     display: flex;
     flex-direction: column;
-    gap: 0;
-  }
-
-  .landing-status-bar {
-    display: flex;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 24px;
-    --status-color: #4cc38a;
-    --status-shadow-a: 0 0 0 3px rgba(76, 195, 138, 0.22), 0 0 12px rgba(76, 195, 138, 0.5);
-    --status-shadow-b: 0 0 0 5px rgba(76, 195, 138, 0.1), 0 0 20px rgba(76, 195, 138, 0.35);
-  }
-
-  .landing-status-bar[data-status='checking'] {
-    --status-color: #f2b66d;
-    --status-shadow-a: 0 0 0 3px rgba(242, 182, 109, 0.22), 0 0 12px rgba(242, 182, 109, 0.5);
-    --status-shadow-b: 0 0 0 5px rgba(242, 182, 109, 0.1), 0 0 20px rgba(242, 182, 109, 0.35);
-  }
-
-  .landing-status-bar[data-status='offline'] {
-    --status-color: #ff7b72;
-    --status-shadow-a: 0 0 0 3px rgba(255, 123, 114, 0.22), 0 0 12px rgba(255, 123, 114, 0.5);
-    --status-shadow-b: 0 0 0 5px rgba(255, 123, 114, 0.1), 0 0 20px rgba(255, 123, 114, 0.35);
-  }
-
-  .landing-status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 999px;
-    background: var(--status-color);
-    box-shadow: var(--status-shadow-a);
-    animation: landing-pulse 2.4s ease-in-out infinite;
-  }
-
-  .landing-status-text {
-    color: var(--status-color);
-    font: 700 11px/1 "JetBrains Mono", monospace;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-
-  .landing-status-divider {
-    width: 1px;
-    height: 14px;
-    background: rgba(158, 217, 255, 0.2);
+    text-align: center;
+    max-width: 860px;
   }
 
   .landing-status-version {
+    margin-bottom: 18px;
     color: #5a7a9a;
     font: 600 11px/1 "JetBrains Mono", monospace;
-    letter-spacing: 0.06em;
-  }
-
-  .landing-kicker {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 5px 12px 5px 8px;
-    border-radius: 999px;
-    border: 1px solid rgba(74, 163, 255, 0.3);
-    background: rgba(74, 163, 255, 0.08);
-    color: #7fd0ff;
-    font: 700 11px/1 "JetBrains Mono", monospace;
     letter-spacing: 0.08em;
-    text-transform: uppercase;
-    width: fit-content;
-    margin-bottom: 20px;
-  }
-
-  .landing-kicker-mark {
-    width: 16px;
-    height: 16px;
-    border-radius: 6px;
-    background: linear-gradient(135deg, #4aa3ff, #56d3a0);
-    display: grid;
-    place-items: center;
-    flex: 0 0 auto;
-  }
-
-  .landing-kicker-node { display: none; }
-
-  .landing-kicker-mark::after {
-    content: "";
-    width: 7px;
-    height: 7px;
-    border-radius: 999px;
-    background: rgba(3, 10, 20, 0.8);
   }
 
   .landing-title {
-    margin: 0 0 20px;
+    margin: 0 0 18px;
     color: #f0f7ff;
     font-family: "Inter", "Segoe UI", sans-serif;
-    font-size: clamp(38px, 4.8vw, 72px);
+    font-size: clamp(34px, 4.2vw, 64px);
     line-height: 1.08;
     letter-spacing: -0.04em;
     font-weight: 800;
@@ -867,16 +780,17 @@ const shellStyles = `
   }
 
   .landing-subtitle {
-    margin: 0 0 32px;
+    margin: 0 0 30px;
     color: #7a99b8;
     font-size: clamp(14px, 1.2vw, 17px);
     line-height: 1.7;
-    max-width: 54ch;
+    max-width: 60ch;
   }
 
   .landing-cta-row {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 12px;
     flex-wrap: wrap;
   }
@@ -924,219 +838,124 @@ const shellStyles = `
     background: rgba(255, 255, 255, 0.07);
   }
 
-  /* ── Preview panel ─────────────────────────────────────── */
-  .landing-preview {
-    position: relative;
-    overflow: hidden;
-    border-radius: 24px;
-    border: 1px solid rgba(232, 234, 237, 0.16);
-    background: var(--ws-facet);
-    box-shadow: 0 24px 72px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,0.16);
-    aspect-ratio: 4/3.2;
-    min-height: 340px;
-  }
-
-  .landing-preview-topbar {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 38px;
-    background: rgba(4, 10, 18, 0.82);
-    border-bottom: 1px solid rgba(74, 163, 255, 0.1);
-    backdrop-filter: blur(12px);
-    display: flex;
-    align-items: center;
-    padding: 0 14px;
-    gap: 8px;
-  }
-
-  .landing-preview-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 999px;
-  }
-
-  .landing-preview-dot:nth-child(1) { background: rgba(255, 95, 86, 0.7); }
-  .landing-preview-dot:nth-child(2) { background: rgba(255, 189, 46, 0.7); }
-  .landing-preview-dot:nth-child(3) { background: rgba(39, 201, 63, 0.7); }
-
-  .landing-preview-tab {
-    margin-left: 12px;
-    padding: 3px 10px;
-    border-radius: 6px;
-    background: rgba(74, 163, 255, 0.12);
-    border: 1px solid rgba(74, 163, 255, 0.2);
-    color: #7fd0ff;
-    font: 600 10px/1 "JetBrains Mono", monospace;
-    letter-spacing: 0.06em;
-  }
-
-  .landing-preview-orbit {
-    position: absolute;
-    inset: 38px 0 0;
-    opacity: 0.95;
-  }
-
-  .landing-preview-orbit svg {
+  /* ── Star map ──────────────────────────────────────────── */
+  .star-map {
+    display: block;
     width: 100%;
-    height: 100%;
+    height: auto;
     overflow: visible;
   }
 
-  .landing-preview-line {
-    stroke: rgba(74, 163, 255, 0.3);
-    stroke-width: 1.2;
+  .star-map-twinkle {
+    fill: #dbe9ff;
+    animation: star-map-twinkle 4s ease-in-out infinite;
+  }
+
+  .star-map-station {
+    animation: star-map-drift 9s ease-in-out infinite;
+  }
+
+  .star-map-deck {
     fill: none;
-    stroke-dasharray: 4 3;
+    stroke: rgba(127, 208, 255, 0.16);
+    stroke-width: 1;
+    stroke-dasharray: 2 7;
+    animation: star-map-flow 6s linear infinite;
   }
 
-  .landing-preview-line--warm {
-    stroke: rgba(242, 182, 109, 0.3);
+  .star-map-deck--outer {
+    stroke: rgba(192, 132, 252, 0.14);
+    stroke-width: 1.4;
+    stroke-dasharray: 18 6 2 6;
+    animation-duration: 14s;
   }
 
-  .landing-preview-line--mint {
-    stroke: rgba(76, 195, 138, 0.28);
+  .star-map-deck--core {
+    stroke: rgba(127, 208, 255, 0.38);
+    stroke-dasharray: none;
   }
 
-  .landing-node {
+  .star-map-deck--upper {
+    stroke: rgba(158, 230, 255, 0.1);
+    stroke-dasharray: 1 6;
+  }
+
+  .star-map-spoke {
+    stroke: rgba(127, 208, 255, 0.07);
+    stroke-width: 1;
+  }
+
+  .star-map-float {
+    animation: star-map-float 6s ease-in-out infinite;
+  }
+
+  .star-map-link {
+    fill: none;
+    stroke-width: 1;
+    stroke-opacity: 0.32;
+  }
+
+  .star-map-machine-link {
+    stroke: rgba(76, 195, 138, 0.1);
+    stroke-width: 0.6;
+  }
+
+  .star-map-machine-link--idle {
+    stroke: rgba(138, 150, 168, 0.12);
+    stroke-dasharray: 2 4;
+  }
+
+  .star-map-flow {
+    fill: none;
+    stroke: rgba(158, 230, 255, 0.55);
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-dasharray: 6 10;
+    animation: star-map-flow 2.4s linear infinite;
+  }
+
+  .star-map-machine {
+    fill: #6ee7b7;
+    animation: star-map-twinkle 3.2s ease-in-out infinite;
+  }
+
+  .star-map-machine--idle {
+    fill: #5d6878;
+    animation: none;
+  }
+
+  .star-map-hub {
+    transform-box: fill-box;
     transform-origin: center;
-    animation: landing-float 7s ease-in-out infinite;
+    animation: star-map-breathe 4.5s ease-in-out infinite;
   }
 
-  .landing-node:nth-child(2n) { animation-delay: -2.2s; }
-  .landing-node:nth-child(3n) { animation-delay: -4.1s; }
-
-  .landing-command-card,
-  .landing-dossier-card,
-  .landing-timeline-card {
-    position: absolute;
-    border: 1px solid rgba(74, 163, 255, 0.16);
-    background: rgba(12, 12, 12, 0.84);
-    backdrop-filter: blur(20px);
-    box-shadow: 0 12px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04) inset;
+  .star-map-hub-ring {
+    fill: none;
+    stroke: rgba(127, 208, 255, 0.4);
+    stroke-width: 1;
+    stroke-dasharray: 3 5;
   }
 
-  .landing-command-card {
-    top: 50px;
-    left: 16px;
-    right: 16px;
-    border-radius: 14px;
-    padding: 10px 14px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+  .star-map-label {
+    font-family: "Huangkai Hualu", "KaiTi", "STKaiti", cursive;
+    font-size: 18px;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    stroke: rgba(8, 8, 8, 0.9);
+    stroke-width: 4px;
+    paint-order: stroke fill;
   }
 
-  .landing-command-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 10px;
-    display: grid;
-    place-items: center;
-    color: #56d3a0;
-    background: rgba(76, 195, 138, 0.1);
-    border: 1px solid rgba(76, 195, 138, 0.2);
-    flex: 0 0 auto;
+  .star-map-label--step {
+    fill: #a9bdd2;
+    font-size: 15px;
   }
 
-  .landing-command-label {
-    color: #c8dff0;
-    font-size: 12px;
-    font-weight: 700;
-  }
-
-  .landing-command-meta {
-    margin-top: 2px;
-    color: #4a6a85;
-    font: 500 10px/1 "JetBrains Mono", monospace;
-  }
-
-  .landing-dossier-card {
-    right: 14px;
-    bottom: 80px;
-    width: min(210px, calc(100% - 28px));
-    border-radius: 16px;
-    padding: 14px;
-  }
-
-  .landing-dossier-kicker {
-    color: #56d3a0;
-    font: 700 9px/1 "JetBrains Mono", monospace;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-
-  .landing-dossier-title {
-    margin-top: 6px;
-    color: #e8f4ff;
-    font: 800 20px/1 "Inter", sans-serif;
-    letter-spacing: -0.04em;
-  }
-
-  .landing-dossier-row {
-    margin-top: 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-    color: #5e7d98;
-    font-size: 10px;
-    font-weight: 600;
-  }
-
-  .landing-dossier-row strong { color: #f2b66d; font-weight: 700; }
-
-  .landing-timeline-card {
-    left: 14px;
-    right: 14px;
-    bottom: 14px;
-    border-radius: 12px;
-    padding: 10px 12px;
-  }
-
-  .landing-timeline-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-  }
-
-  .landing-timeline-title {
-    color: #5e7d98;
-    font: 700 9px/1 "JetBrains Mono", monospace;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .landing-timeline-badge {
-    color: #7fd0ff;
-    font: 700 9px/1 "JetBrains Mono", monospace;
+  .star-map-label--hub {
+    fill: #f4fbff;
+    font-size: 26px;
     letter-spacing: 0.06em;
-  }
-
-  .landing-timeline-track {
-    position: relative;
-    height: 4px;
-    border-radius: 999px;
-    background: rgba(74, 163, 255, 0.1);
-    overflow: hidden;
-  }
-
-  .landing-timeline-track::after {
-    content: "";
-    position: absolute;
-    inset: 0 28% 0 0;
-    border-radius: inherit;
-    background: linear-gradient(90deg, #4cc38a, #4aa3ff, #f2b66d);
-  }
-
-  .landing-timeline-labels {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 6px;
-    color: #3a5570;
-    font: 600 9px/1 "JetBrains Mono", monospace;
   }
 
   /* ── Metrics strip ─────────────────────────────────────── */
@@ -1189,203 +1008,29 @@ const shellStyles = `
     letter-spacing: 0.02em;
   }
 
-  /* ── Workspace grid ────────────────────────────────────── */
-  .landing-section-header {
-    display: flex;
-    align-items: baseline;
-    gap: 14px;
-    margin-bottom: 16px;
-  }
-
-  .landing-section-title {
-    color: #c8dff0;
-    font: 700 13px/1 "JetBrains Mono", monospace;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    margin: 0;
-  }
-
-  .landing-section-line {
-    flex: 1;
-    height: 1px;
-    background: rgba(74, 163, 255, 0.1);
-  }
-
-  .landing-workspace-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-  }
-
-  .landing-workspace-card {
-    position: relative;
-    overflow: hidden;
-    padding: 22px;
-    border-radius: 18px;
-    border: 1px solid rgba(158, 217, 255, 0.09);
-    background: rgba(255, 255, 255, 0.025);
-    cursor: pointer;
-    text-align: left;
-    color: inherit;
-    transition: border-color 200ms ease, background 200ms ease, transform 200ms ease, box-shadow 200ms ease;
-  }
-
-  .landing-workspace-card::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(158, 217, 255, 0.16), transparent);
-    opacity: 0;
-    transition: opacity 200ms ease;
-  }
-
-  .landing-workspace-card:hover {
-    border-color: rgba(74, 163, 255, 0.24);
-    background: rgba(74, 163, 255, 0.06);
-    transform: translateY(-3px);
-    box-shadow: 0 12px 32px rgba(0,0,0,0.28);
-  }
-
-  .landing-workspace-card:hover::before { opacity: 1; }
-
-  .landing-workspace-card--primary {
-    grid-column: span 3;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    gap: 24px;
-    border-color: rgba(76, 195, 138, 0.22);
-    background: linear-gradient(135deg, rgba(76, 195, 138, 0.08), rgba(74, 163, 255, 0.05));
-  }
-
-  .landing-workspace-card--primary:hover {
-    border-color: rgba(76, 195, 138, 0.38);
-    background: linear-gradient(135deg, rgba(76, 195, 138, 0.12), rgba(74, 163, 255, 0.08));
-    box-shadow: 0 12px 40px rgba(76, 195, 138, 0.12);
-  }
-
-  .landing-workspace-card-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
-    display: grid;
-    place-items: center;
-    color: #7fd0ff;
-    background: rgba(74, 163, 255, 0.1);
-    border: 1px solid rgba(74, 163, 255, 0.2);
-    margin-bottom: 14px;
-  }
-
-  .landing-workspace-card--primary .landing-workspace-card-icon {
-    color: #56d3a0;
-    background: rgba(76, 195, 138, 0.1);
-    border-color: rgba(76, 195, 138, 0.22);
-    width: 48px;
-    height: 48px;
-    border-radius: 14px;
-    margin-bottom: 0;
-  }
-
-  .landing-workspace-card-eyebrow {
-    color: #56d3a0;
-    font: 700 10px/1 "JetBrains Mono", monospace;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    margin-bottom: 6px;
-  }
-
-  .landing-workspace-card-title {
-    color: #e2effb;
-    font: 700 16px/1.2 "Inter", sans-serif;
-    letter-spacing: -0.025em;
-    margin-bottom: 6px;
-  }
-
-  .landing-workspace-card--primary .landing-workspace-card-title {
-    font-size: 20px;
-  }
-
-  .landing-workspace-card-desc {
-    color: #4a6a85;
-    font-size: 12px;
-    line-height: 1.5;
-    max-width: 36ch;
-  }
-
-  .landing-workspace-card-arrow {
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    display: grid;
-    place-items: center;
-    color: #56d3a0;
-    background: rgba(76, 195, 138, 0.1);
-    border: 1px solid rgba(76, 195, 138, 0.2);
-    flex: 0 0 auto;
-    transition: 180ms ease;
-  }
-
-  .landing-workspace-card--primary:hover .landing-workspace-card-arrow {
-    background: rgba(76, 195, 138, 0.18);
-    transform: translateX(3px);
-  }
-
-  /* ── Capability band ───────────────────────────────────── */
-  .landing-capability-band {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    padding: 14px 18px;
-    border: 1px solid rgba(74, 163, 255, 0.1);
-    border-radius: 16px;
-    background: rgba(12, 12, 12, 0.6);
-    backdrop-filter: blur(12px);
-  }
-
-  .landing-capability-label {
-    color: #3a5570;
-    font: 700 10px/1 "JetBrains Mono", monospace;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    margin-right: 4px;
-    white-space: nowrap;
-  }
-
-  .landing-capability {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 28px;
-    padding: 0 10px;
-    border-radius: 999px;
-    color: #5a7a9a;
-    background: rgba(74, 163, 255, 0.05);
-    border: 1px solid rgba(74, 163, 255, 0.12);
-    font-size: 11px;
-    font-weight: 600;
-    transition: 160ms ease;
-    cursor: default;
-  }
-
-  .landing-capability:hover {
-    color: #9be8ff;
-    border-color: rgba(74, 163, 255, 0.28);
-    background: rgba(74, 163, 255, 0.1);
-  }
-
   /* ── Animations ────────────────────────────────────────── */
-  @keyframes landing-float {
-    0%, 100% { transform: translateY(0) scale(1); }
-    50% { transform: translateY(-8px) scale(1.05); }
+  @keyframes star-map-twinkle {
+    0%, 100% { opacity: 0.25; }
+    50% { opacity: 1; }
   }
 
-  @keyframes landing-pulse {
-    0%, 100% { box-shadow: var(--status-shadow-a); }
-    50% { box-shadow: var(--status-shadow-b); }
+  @keyframes star-map-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(calc(var(--float-amp, 4px) * -1)); }
+  }
+
+  @keyframes star-map-drift {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+
+  @keyframes star-map-flow {
+    to { stroke-dashoffset: -32; }
+  }
+
+  @keyframes star-map-breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.12); }
   }
 
   .workspace-loading {
@@ -1417,26 +1062,12 @@ const shellStyles = `
       justify-content: flex-start;
     }
 
-    .landing-hero {
-      grid-template-columns: 1fr;
-      min-height: auto;
-    }
-
-    .landing-workspace-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .landing-workspace-card--primary {
-      grid-column: span 2;
-    }
-
     .landing-metrics {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .landing-preview {
-      aspect-ratio: 16/10;
-      min-height: 320px;
+    .star-map-label--step {
+      display: none;
     }
   }
 
@@ -1447,21 +1078,8 @@ const shellStyles = `
     }
 
     .landing-shell {
-      padding: 20px 16px;
+      padding: 4px 16px 20px;
       gap: 36px;
-    }
-
-    .landing-workspace-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .landing-workspace-card--primary {
-      grid-column: span 1;
-      grid-template-columns: 1fr;
-    }
-
-    .landing-workspace-card-arrow {
-      display: none;
     }
 
     .landing-metrics {
@@ -1469,19 +1087,19 @@ const shellStyles = `
     }
 
     .landing-preview {
-      min-height: 280px;
-    }
-
-    .landing-dossier-card {
-      left: 10px;
-      right: 10px;
-      width: auto;
+      width: calc(100% + 32px);
+      margin: 0 -16px;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .landing-node,
-    .landing-workspace-card,
+    .star-map-twinkle,
+    .star-map-station,
+    .star-map-deck,
+    .star-map-flow,
+    .star-map-machine,
+    .star-map-float,
+    .star-map-hub,
     .landing-cta-primary,
     .landing-cta-secondary {
       animation: none;
@@ -1544,18 +1162,10 @@ function formatMetric(value: number | null, fallback: string) {
 
 function WelcomeScreen({
   onOpenNetwork,
-  onOpenVocabulary,
   onOpenReasoning,
-  onOpenImport,
-  onOpenDecisions,
-  onOpenManage,
 }: {
   onOpenNetwork: () => void;
-  onOpenVocabulary: () => void;
   onOpenReasoning: () => void;
-  onOpenImport: () => void;
-  onOpenDecisions: () => void;
-  onOpenManage: () => void;
 }) {
   const { t } = useI18n();
   const [stats, setStats] = useState<{ nodes: number | null; edges: number | null; status: ConnectionStatus }>({
@@ -1599,57 +1209,18 @@ function WelcomeScreen({
     { label: isOnline ? t('metric.datasetOnline') : t('metric.readyToExplore'), value: isOnline ? t('metric.active') : t('metric.standby'), tone: 'rose' },
   ];
 
-  const secondaryLaunchers: LandingAction[] = [
-    {
-      label: t('launcher.vocabulary'),
-      description: t('launcher.vocabularyDesc'),
-      icon: Database,
-      onClick: onOpenVocabulary,
-    },
-    {
-      label: t('launcher.analyze'),
-      description: t('launcher.analyzeDesc'),
-      icon: BrainCircuit,
-      onClick: onOpenReasoning,
-    },
-    {
-      label: t('launcher.decisions'),
-      description: t('launcher.decisionsDesc'),
-      icon: Scale,
-      onClick: onOpenDecisions,
-    },
-    {
-      label: t('launcher.enrich'),
-      description: t('launcher.enrichDesc'),
-      icon: GitBranchPlus,
-      onClick: onOpenImport,
-    },
-    {
-      label: t('launcher.manage'),
-      description: t('launcher.manageDesc'),
-      icon: ShieldCheck,
-      onClick: onOpenManage,
-    },
-  ];
-
   return (
     <main className="landing-page">
       <div className="landing-shell">
 
         {/* ── Hero ── */}
         <section className="landing-hero">
-          <div className="landing-copy">
-            <div className="landing-status-bar" data-status={stats.status}>
-              <div className="landing-status-dot" />
-              <span className="landing-status-text">{t(CONNECTION_STATUS_KEY[stats.status])}</span>
-              <div className="landing-status-divider" />
-              <span className="landing-status-version">{t('landing.version')}</span>
-            </div>
+          <div className="landing-preview">
+            <LandingStarMap />
+          </div>
 
-            <div className="landing-kicker" aria-label={t('landing.kicker')}>
-              <span className="landing-kicker-mark" aria-hidden="true" />
-              {t('landing.kicker')}
-            </div>
+          <div className="landing-copy">
+            <div className="landing-status-version">{t('landing.version')}</div>
 
             <h1 className="landing-title">
               {t('landing.titleBefore')}<br />
@@ -1671,79 +1242,6 @@ function WelcomeScreen({
               </button>
             </div>
           </div>
-
-          {/* ── Preview panel ── */}
-          <div className="landing-preview" aria-label={t('landing.previewLabel')}>
-            <div className="landing-preview-topbar" aria-hidden="true">
-              <div className="landing-preview-dot" />
-              <div className="landing-preview-dot" />
-              <div className="landing-preview-dot" />
-              <div className="landing-preview-tab">{t('landing.previewTab')}</div>
-            </div>
-            <div className="landing-command-card">
-              <div className="landing-command-icon">
-                <Search size={15} />
-              </div>
-              <div>
-                <div className="landing-command-label">{t('landing.searchCommand')}</div>
-                <div className="landing-command-meta">{t('landing.searchMeta')}</div>
-              </div>
-            </div>
-            <div className="landing-preview-orbit">
-              <svg viewBox="0 0 640 440" role="img" aria-hidden="true">
-                <path className="landing-preview-line" d="M110 310 C200 110 390 90 510 240" />
-                <path className="landing-preview-line landing-preview-line--warm" d="M120 190 C240 270 374 182 508 340" />
-                <path className="landing-preview-line landing-preview-line--mint" d="M168 378 C274 200 392 218 488 144" />
-                <path className="landing-preview-line landing-preview-line--warm" d="M204 118 C318 340 408 368 526 284" />
-                <path className="landing-preview-line" d="M110 310 C180 350 260 360 340 320 C420 280 480 260 510 240" />
-                <g className="landing-node">
-                  <circle cx="110" cy="310" r="10" fill="#4cc38a" fillOpacity="0.9" />
-                  <circle cx="110" cy="310" r="20" fill="none" stroke="rgba(76,195,138,0.24)" strokeWidth="1.5" />
-                  <circle cx="110" cy="310" r="34" fill="none" stroke="rgba(76,195,138,0.1)" strokeWidth="1" />
-                </g>
-                <g className="landing-node">
-                  <circle cx="204" cy="118" r="7" fill="#4aa3ff" fillOpacity="0.9" />
-                  <circle cx="204" cy="118" r="16" fill="none" stroke="rgba(74,163,255,0.24)" strokeWidth="1.5" />
-                </g>
-                <g className="landing-node">
-                  <circle cx="510" cy="240" r="13" fill="#f2b66d" fillOpacity="0.9" />
-                  <circle cx="510" cy="240" r="26" fill="none" stroke="rgba(242,182,109,0.26)" strokeWidth="1.5" />
-                  <circle cx="510" cy="240" r="40" fill="none" stroke="rgba(242,182,109,0.1)" strokeWidth="1" />
-                </g>
-                <g className="landing-node">
-                  <circle cx="488" cy="144" r="6" fill="#ff9daf" fillOpacity="0.9" />
-                  <circle cx="488" cy="144" r="14" fill="none" stroke="rgba(255,157,175,0.22)" strokeWidth="1.5" />
-                </g>
-                <g className="landing-node">
-                  <circle cx="340" cy="320" r="9" fill="#7fd0ff" fillOpacity="0.9" />
-                  <circle cx="340" cy="320" r="20" fill="none" stroke="rgba(127,208,255,0.22)" strokeWidth="1.5" />
-                </g>
-                <g opacity="0.45">
-                  {PREVIEW_DOTS.map((dot, index) => (
-                    <circle key={index} cx={dot.cx} cy={dot.cy * 0.82} r={dot.r * 0.8} fill={dot.fill} />
-                  ))}
-                </g>
-              </svg>
-            </div>
-            <div className="landing-dossier-card">
-              <div className="landing-dossier-kicker">{t('landing.dossierKicker')}</div>
-              <div className="landing-dossier-title">NSRP1</div>
-              <div className="landing-dossier-row"><span>{t('landing.distanceBand')}</span><strong>{t('landing.near')}</strong></div>
-              <div className="landing-dossier-row"><span>{t('landing.pathCoherence')}</span><strong>0.84</strong></div>
-              <div className="landing-dossier-row"><span>{t('landing.provenance')}</span><strong>{t('landing.audited')}</strong></div>
-            </div>
-            <div className="landing-timeline-card">
-              <div className="landing-timeline-header">
-                <span className="landing-timeline-title">{t('landing.temporalEvidence')}</span>
-                <span className="landing-timeline-badge">{t('landing.coverage')}</span>
-              </div>
-              <div className="landing-timeline-track" />
-              <div className="landing-timeline-labels">
-                <span>1970</span>
-                <span>2030</span>
-              </div>
-            </div>
-          </div>
         </section>
 
         {/* ── Live metrics ── */}
@@ -1755,56 +1253,6 @@ function WelcomeScreen({
             </div>
           ))}
         </div>
-
-        {/* ── Workspace grid ── */}
-        <section aria-label={t('landing.workspacesLabel')}>
-          <div className="landing-section-header">
-            <h2 className="landing-section-title">{t('landing.workspaces')}</h2>
-            <div className="landing-section-line" />
-          </div>
-          <div className="landing-workspace-grid">
-            <button className="landing-workspace-card landing-workspace-card--primary" type="button" onClick={onOpenNetwork}>
-              <div>
-                <div className="landing-workspace-card-eyebrow">{t('landing.primaryEyebrow')}</div>
-                <div className="landing-workspace-card-title">{t('landing.primaryTitle')}</div>
-                <div className="landing-workspace-card-desc">
-                  {t('landing.primaryDesc')}
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div className="landing-workspace-card-icon" style={{ marginBottom: 0 }}>
-                  <Network size={22} />
-                </div>
-                <div className="landing-workspace-card-arrow">
-                  <ArrowRight size={18} />
-                </div>
-              </div>
-            </button>
-
-            {secondaryLaunchers.map((launcher) => {
-              const Icon = launcher.icon;
-              return (
-                <button key={launcher.label} className="landing-workspace-card" type="button" onClick={launcher.onClick}>
-                  <div className="landing-workspace-card-icon">
-                    <Icon size={18} />
-                  </div>
-                  <div className="landing-workspace-card-title">{launcher.label}</div>
-                  <div className="landing-workspace-card-desc">{launcher.description}</div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* ── Capability band ── */}
-        <section className="landing-capability-band" aria-label={t('landing.capabilitiesLabel')}>
-          <div className="landing-capability-label">{t('capability.label')}</div>
-          <div className="landing-capability"><Radar size={12} />{t('capability.heatmap')}</div>
-          <div className="landing-capability"><Network size={12} />{t('capability.neighborhood')}</div>
-          <div className="landing-capability"><GitMerge size={12} />{t('capability.communities')}</div>
-          <div className="landing-capability"><Route size={12} />{t('capability.path')}</div>
-          <div className="landing-capability"><ShieldCheck size={12} />{t('capability.dossier')}</div>
-        </section>
 
       </div>
     </main>
@@ -1860,20 +1308,10 @@ export default function App() {
             setActiveWorkspace('explore');
             setExploreView('graph');
           }}
-          onOpenVocabulary={() => {
-            setActiveWorkspace('explore');
-            setExploreView('vocabulary');
-          }}
           onOpenReasoning={() => {
             setActiveWorkspace('analyze');
             setAnalyzeView('reasoning');
           }}
-          onOpenImport={() => {
-            setActiveWorkspace('enrich');
-            setEnrichView('import');
-          }}
-          onOpenDecisions={() => setActiveWorkspace('decisions')}
-          onOpenManage={() => setActiveWorkspace('manage')}
         />
       );
     }

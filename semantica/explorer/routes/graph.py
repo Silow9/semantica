@@ -144,6 +144,17 @@ async def get_node(
     return await _get_node_or_404(node_id, session)
 
 
+@router.delete("/node/{node_id}")
+async def delete_node(
+    node_id: str,
+    session: GraphSession = Depends(get_session),
+):
+    removed_edges = await asyncio.to_thread(session.delete_node, node_id)
+    if removed_edges is None:
+        raise HTTPException(status_code=404, detail=f"Node '{node_id}' not found")
+    return {"deleted": node_id, "removed_edges": removed_edges}
+
+
 @router.get("/node/{node_id}/neighbors", response_model=list[NeighborResponse])
 async def get_neighbors(
     node_id: str,

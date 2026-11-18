@@ -147,6 +147,46 @@ class TestHealthInfo:
         assert '<div id="root"></div>' in response.text
         assert '<script src="/assets/app.js"></script>' in response.text
 
+    def test_spa_serves_public_font_and_falls_back_for_routes(self, tmp_path, monkeypatch):
+        from starlette.testclient import TestClient
+        from semantica.explorer import app as app_module
+        from semantica.explorer.app import create_app
+
+        package_dir = tmp_path / "semantica"
+        static_dir = package_dir / "static"
+        font_dir = static_dir / "fonts"
+        font_dir.mkdir(parents=True)
+        (static_dir / "index.html").write_text(
+            '<!doctype html><html><body><div id="root"></div></body></html>',
+            encoding="utf-8",
+        )
+        font_bytes = b"\x00\x01\x00\x00font"
+        (font_dir / "mark.ttf").write_bytes(font_bytes)
+        outside = tmp_path / "secret.txt"
+        outside.write_text("secret", encoding="utf-8")
+
+        class FakeAppPath:
+            def __init__(self, *_args, **_kwargs):
+                self.path = package_dir / "explorer" / "app.py"
+
+            def resolve(self):
+                return self.path.resolve()
+
+        monkeypatch.setattr(app_module, "Path", FakeAppPath)
+
+        with TestClient(create_app()) as test_client:
+            font_response = test_client.get("/fonts/mark.ttf")
+            route_response = test_client.get("/welcome")
+            escape_response = test_client.get("/fonts/../../secret.txt")
+
+        assert font_response.status_code == 200
+        assert font_response.content == font_bytes
+        assert font_response.headers["content-type"].startswith("font/ttf")
+        assert '<div id="root"></div>' in route_response.text
+        assert escape_response.status_code == 200
+        assert b"secret" not in escape_response.content
+        assert '<div id="root"></div>' in escape_response.text
+
     def test_health(self, client):
         response = client.get("/api/health")
         assert response.status_code == 200

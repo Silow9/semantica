@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { useI18n } from "../../i18n";
 import type { MessageKey } from "../../i18n/messages";
 import { graph } from "../../store/graphStore";
@@ -48,6 +48,8 @@ export interface GraphInspectorPanelProps {
   onTracePath: () => void;
   pathResult: PathResponse | null;
   onDownloadProvenance: (format: "json" | "markdown") => void;
+  onDeleteNode?: (nodeId: string) => void;
+  isDeletingNode?: boolean;
   onFocusNode?: (nodeId: string) => void;
   onMarkdownApplied?: (result: MarkdownApplyResult) => void;
   onMarkdownDirtyChange?: (dirty: boolean) => void;
@@ -327,6 +329,8 @@ export function GraphInspectorPanel({
   onTracePath,
   pathResult,
   onDownloadProvenance,
+  onDeleteNode,
+  isDeletingNode = false,
   onFocusNode,
   onMarkdownApplied,
   onMarkdownDirtyChange,
@@ -476,6 +480,16 @@ export function GraphInspectorPanel({
               {t("inspector.provenanceMd")}
             </button>
           </div>
+          {onDeleteNode && directlyInspectable ? (
+            <button
+              style={{ ...dangerActionButtonStyle, opacity: isDeletingNode ? 0.7 : 1 }}
+              onClick={() => onDeleteNode(nodeId)}
+              disabled={isDeletingNode}
+            >
+              {isDeletingNode ? <Loader2 size={14} className="animate-spin" style={{ marginRight: 6 }} /> : <Trash2 size={14} style={{ marginRight: 6 }} />}
+              {isDeletingNode ? t("inspector.deleting") : t("inspector.deleteNode")}
+            </button>
+          ) : null}
         </div>
         <input
           value={predictionType}
@@ -646,6 +660,14 @@ const secondaryActionButtonStyle: CSSProperties = {
   border: `1px solid ${GRAPH_THEME.ui.control.defaultBorder}`,
   color: GRAPH_THEME.ui.control.defaultText,
   fontWeight: 600,
+};
+
+const dangerActionButtonStyle: CSSProperties = {
+  ...actionButtonStyle,
+  width: "100%",
+  background: "rgba(255, 123, 114, 0.1)",
+  border: "1px solid rgba(255, 123, 114, 0.32)",
+  color: GRAPH_THEME.ui.control.dangerText,
 };
 
 const predictionCardStyle: CSSProperties = {

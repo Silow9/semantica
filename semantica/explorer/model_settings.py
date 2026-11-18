@@ -102,21 +102,40 @@ def _headers(settings: dict[str, str]) -> dict[str, str]:
     return headers
 
 
-def _post(settings: dict[str, str], path: str, payload: dict[str, Any]) -> dict[str, Any]:
+def _post(settings: dict[str, str], path: str, payload: dict[str, Any], timeout: float | None = None) -> dict[str, Any]:
     url = f"{validate_base_url(settings['base_url'])}/{path}"
-    response = httpx.post(url, json=payload, headers=_headers(settings), timeout=REQUEST_TIMEOUT)
+    response = httpx.post(url, json=payload, headers=_headers(settings), timeout=timeout or REQUEST_TIMEOUT)
     if response.status_code >= 400:
         raise RuntimeError(f"{url} returned HTTP {response.status_code}: {response.text[:300]}")
     return response.json()
 
 
-def chat(settings: dict[str, str], prompt: str, max_tokens: int = 256) -> str:
-    body = _post(
-        settings,
-        "chat/completions",
-        {"model": settings["model"], "messages": [{"role": "user", "content": prompt}], "max_tokens": max_tokens},
-    )
-    return body["choices"][0]["message"].get("content") or ""
+def _message_text(message: dict[str, Any]) -> str:
+    content = message.get("content")
+    if isinstance(content, list):
+        content = "".join(part.get("text", "") if isinstance(part, dict) else str(part) for part in content)
+    text = str(content or "").strip()
+    if text:
+        return text
+    # Thinking models can spend the whole budget in reasoning_content and leave content empty.
+    return str(message.get("reasoning_content") or "").strip()
+
+
+def chat(
+    settings: dict[str, str],
+    prompt: str,
+    max_tokens: int = 256,
+    system: str | None = None,
+    extra: dict[str, Any] | None = None,
+    timeout: float | None = None,
+) -> str:
+    messages = [{"role": "system", "content": system}] if system else []
+    messages.append({"role": "user", "content": prompt})
+    payload: dict[str, Any] = {"model": settings["model"], "messages": messages, "max_tokens": max_tokens}
+    if extra:
+        payload.update(extra)
+    body = _post(settings, "chat/completions", payload, timeout=timeout)
+    return _message_text(body["choices"][0]["message"])
 
 
 def embed(settings: dict[str, str], texts: list[str]) -> list[list[float]]:

@@ -27,7 +27,7 @@ import { lazy, Suspense } from "react";
 import { SigmaSceneAdapter } from "./SigmaSceneAdapter";
 import { useLoadGraph, useReloadGraph } from "./useLoadGraph";
 import { GraphLibraryPicker } from "./GraphLibraryPicker";
-import { useGraphLibrary } from "./graphLibrary";
+import { GRAPH_LIBRARY_QUERY_KEY, useGraphLibrary } from "./graphLibrary";
 import { GraphLoadingOverlay } from "./GraphLoadingOverlay";
 import { formatMessage, message, sameMessage, useI18n } from "../../i18n";
 import type { MessageKey } from "../../i18n/messages";
@@ -1298,6 +1298,7 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
   const [searchError, setSearchError] = useState("");
   const [predictionType, setPredictionType] = useState("");
   const [isRunningPredictions, setIsRunningPredictions] = useState(false);
+  const [isDeletingNode, setIsDeletingNode] = useState(false);
   const [predictions, setPredictions] = useState<LinkPrediction[]>([]);
   const [pathTargetId, setPathTargetId] = useState("");
   const [pathResult, setPathResult] = useState<PathResponse | null>(null);
@@ -1915,6 +1916,42 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
     document.body.removeChild(anchor);
   }, [inspectableNodeId]);
 
+  const dropNodeFromScene = useCallback((nodeId: string) => {
+    if (!graph.hasNode(nodeId)) return;
+    graph.dropNode(nodeId);
+    setSelectedNodeId((current) => (current === nodeId ? "" : current));
+    setFocusedNodeId((current) => (current === nodeId ? "" : current));
+    setLastGroupedSelectedNodeId((current) => (current === nodeId ? "" : current));
+    setCollapsedNeighborhoodNodeIds((current) => current.filter((id) => id !== nodeId));
+    setSelectedEdgeId((current) => (current && !graph.hasEdge(current) ? "" : current));
+    setPathResult((current) => (current?.path?.includes(nodeId) ? null : current));
+    setPredictions((current) => current.filter((prediction) => prediction.target !== nodeId));
+    setGraphVersion((current) => current + 1);
+    sceneRef.current?.getRuntime()?.requestRender();
+  }, []);
+
+  const handleDeleteNode = useCallback(async (nodeId: string) => {
+    if (!nodeId || !graph.hasNode(nodeId) || isDeletingNode) return;
+    const label = String(graph.getNodeAttribute(nodeId, "label") ?? nodeId);
+    if (!window.confirm(t("inspector.deleteConfirm", { name: label, count: graph.degree(nodeId) }))) return;
+    setIsDeletingNode(true);
+    try {
+      const response = await fetch(`/api/graph/node/${encodeURIComponent(nodeId)}`, { method: "DELETE" });
+      if (!response.ok && response.status !== 404) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(typeof data.detail === "string" ? data.detail : `HTTP ${response.status}`);
+      }
+      setMarkdownDraftDirty(false);
+      onDirtyChange?.(false);
+      dropNodeFromScene(nodeId);
+      void queryClient.invalidateQueries({ queryKey: GRAPH_LIBRARY_QUERY_KEY });
+    } catch (deleteError) {
+      window.alert(t("inspector.deleteFailed", { detail: deleteError instanceof Error ? deleteError.message : String(deleteError) }));
+    } finally {
+      setIsDeletingNode(false);
+    }
+  }, [dropNodeFromScene, isDeletingNode, onDirtyChange, queryClient, t]);
+
   const handleMarkdownApplied = useCallback((result: MarkdownApplyResult) => {
     if (result.resource.kind !== "context-node") return;
     if (!graph.hasNode(result.resource.id)) return;
@@ -1980,6 +2017,10 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
           setGraphVersion((current) => current + 1);
           sceneRef.current?.getRuntime()?.requestRender();
         }
+        if ((eventType === "REMOVE_NODE" || eventType === "DELETE_NODE") && message.data?.entity_id) {
+          dropNodeFromScene(String(message.data.entity_id));
+          return;
+        }
         if (eventType === "UPDATE_NODE" && payload?.id && graph.hasNode(payload.id)) {
           markdownRefreshGuard.invalidate(payload.id);
           const properties = payload.properties ?? {};
@@ -2025,7 +2066,7 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
     return () => {
       socket.close();
     };
-  }, [markdownRefreshGuard, queryClient]);
+  }, [dropNodeFromScene, markdownRefreshGuard, queryClient]);
 
   useEffect(() => {
     setCollapsedNeighborhoodNodeIds([]);
@@ -3469,6 +3510,8 @@ function GraphWorkspaceView({ externalFocusNodeId, externalFocusToken, onDirtyCh
                       onTracePath={() => void handleTracePath()}
                       pathResult={pathResult}
                       onDownloadProvenance={(format) => void handleDownloadProvenance(format)}
+                      onDeleteNode={(nodeId) => void handleDeleteNode(nodeId)}
+                      isDeletingNode={isDeletingNode}
                       onFocusNode={focusNode}
                       onMarkdownApplied={handleMarkdownApplied}
                       onMarkdownDirtyChange={handleMarkdownDirtyChange}

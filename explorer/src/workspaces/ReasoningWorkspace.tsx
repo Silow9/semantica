@@ -1,45 +1,74 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useI18n } from "../i18n";
 import type { MessageKey } from "../i18n/messages";
-import { BrainCircuit, Play, RotateCcw, CheckCircle2, AlertCircle, Zap, GitBranch, Info } from "lucide-react";
+import { BrainCircuit, Play, RotateCcw, CheckCircle2, AlertCircle, Zap, GitBranch, Info, ListTree, Workflow } from "lucide-react";
 
-const SAMPLE_FACTS = `inhibits(Metformin, mTOR)
-causes(mTOR, Neurodegeneration)
-treats(Metformin, Diabetes)`;
-
-const SAMPLE_RULE = `IF inhibits(Metformin, mTOR) AND causes(mTOR, Neurodegeneration) THEN candidate(Metformin, Alzheimer's)`;
-
-const TEMPLATES: { labelKey: MessageKey; facts: string; rule: string }[] = [
-  {
-    labelKey: "reason.drug",
-    facts: `inhibits(Metformin, mTOR)\ncauses(mTOR, Neurodegeneration)\ntreats(Metformin, Diabetes)`,
-    rule: `IF inhibits(Metformin, mTOR) AND causes(mTOR, Neurodegeneration) THEN candidate(Metformin, Alzheimer's)`,
-  },
-  {
-    labelKey: "reason.gene",
-    facts: `expressed_in(BRCA1, Breast)\nmutated_in(BRCA1, Cancer)\nassociated_with(Breast, Cancer)`,
-    rule: `IF mutated_in(X, Cancer) AND expressed_in(X, Y) THEN risk_gene(X, Y)`,
-  },
-  {
-    labelKey: "reason.pathway",
-    facts: `activates(EGF, EGFR)\ndownstream_of(MAPK, EGFR)\ndownstream_of(AKT, EGFR)`,
-    rule: `IF activates(X, EGFR) AND downstream_of(Y, EGFR) THEN activates(X, Y)`,
-  },
+const TEMPLATES: { labelKey: MessageKey; textKey: MessageKey }[] = [
+  { labelKey: "reason.order", textKey: "reason.sampleOrder" },
+  { labelKey: "reason.drug", textKey: "reason.sampleDrug" },
+  { labelKey: "reason.gene", textKey: "reason.sampleGene" },
+  { labelKey: "reason.pathway", textKey: "reason.samplePathway" },
 ];
+
+type ReasoningResult = {
+  facts?: string[];
+  rules?: string[];
+  inferred_facts?: string[];
+  answer?: string;
+  reason?: string;
+  rules_fired?: number;
+  added_edges?: number;
+  mutated?: boolean;
+};
+
+function ToggleRow({ checked, onChange, title, help }: { checked: boolean; onChange: (value: boolean) => void; title: string; help: string }) {
+  return (
+    <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "10px 12px", borderRadius: "var(--ws-radius-sm)", border: "1px solid var(--ws-border)", background: checked ? "var(--ws-green-soft)" : "var(--ws-surface)" }}>
+      <div style={{ position: "relative", width: 36, height: 20, flexShrink: 0 }}>
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          style={{ opacity: 0, position: "absolute", inset: 0, cursor: "pointer", margin: 0 }}
+        />
+        <div style={{ position: "absolute", inset: 0, borderRadius: 999, background: checked ? "var(--ws-green)" : "rgba(255,255,255,0.12)", transition: "background 180ms ease" }} />
+        <div style={{ position: "absolute", top: 3, left: checked ? 19 : 3, width: 14, height: 14, borderRadius: 999, background: "#fff", transition: "left 180ms ease", boxShadow: "0 1px 4px rgba(0,0,0,0.4)" }} />
+      </div>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: checked ? "#6ee7b7" : "var(--ws-text-muted)" }}>{title}</div>
+        <div style={{ fontSize: 11, color: "var(--ws-text-dim)" }}>{help}</div>
+      </div>
+    </label>
+  );
+}
+
+function StatementList({ title, icon, items, accent }: { title: string; icon: ReactNode; items: string[]; accent?: boolean }) {
+  if (items.length === 0) return null;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div className="ws-eyebrow" style={{ display: "flex", alignItems: "center", gap: 6 }}>{icon}{title}</div>
+      {items.map((item, i) => (
+        <div key={`${item}-${i}`} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", borderRadius: "var(--ws-radius-sm)", background: "var(--ws-surface)", border: "1px solid var(--ws-border)" }}>
+          {accent && (
+            <div style={{ width: 20, height: 20, borderRadius: 6, background: "var(--ws-green-soft)", border: "1px solid rgba(76,195,138,0.28)", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>
+              <CheckCircle2 size={11} color="var(--ws-green)" />
+            </div>
+          )}
+          <code style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 12, color: accent ? "var(--ws-text)" : "var(--ws-text-muted)", lineHeight: 1.6, wordBreak: "break-all" }}>{item}</code>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function ReasoningWorkspace() {
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const [facts, setFacts] = useState(SAMPLE_FACTS);
-  const [rules, setRules] = useState(SAMPLE_RULE);
-  const [applyToGraph, setApplyToGraph] = useState(true);
-  const [result, setResult] = useState<{
-    inferred_facts?: string[];
-    rules_fired?: number;
-    added_edges?: number;
-    mutated?: boolean;
-  } | null>(null);
+  const [text, setText] = useState(() => t("reason.sampleOrder"));
+  const [applyToGraph, setApplyToGraph] = useState(false);
+  const [useGraphFacts, setUseGraphFacts] = useState(true);
+  const [result, setResult] = useState<ReasoningResult | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState("");
 
@@ -48,19 +77,15 @@ export function ReasoningWorkspace() {
     setError("");
     setResult(null);
     try {
-      const response = await fetch("/api/reason", {
+      const response = await fetch("/api/reason/natural", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          facts: facts.split(/\r?\n/).map((l) => l.trim()).filter(Boolean),
-          rules: rules.split(/\r?\n/).map((l) => l.trim()).filter(Boolean),
-          mode: "forward",
-          apply_to_graph: applyToGraph,
-        }),
+        body: JSON.stringify({ text: text.trim(), apply_to_graph: applyToGraph, use_graph_facts: useGraphFacts }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || `Status ${response.status}`);
-      if (response.status === 207) setError(data.message || "Warning: Partial success reasoning.");
+      if (response.status === 503) throw new Error(t("reason.llmMissing"));
+      if (response.status === 502) throw new Error(t("reason.llmFailed", { detail: data.detail ?? "" }));
+      if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : `Status ${response.status}`);
       setResult(data);
       if (data.mutated) queryClient.invalidateQueries({ queryKey: ["graph", "full-load"] });
     } catch (e) {
@@ -70,19 +95,13 @@ export function ReasoningWorkspace() {
     }
   }
 
-  function loadTemplate(template: (typeof TEMPLATES)[number]) {
-    setFacts(template.facts);
-    setRules(template.rule);
+  function loadText(value: string) {
+    setText(value);
     setResult(null);
     setError("");
   }
 
-  function handleReset() {
-    setFacts(SAMPLE_FACTS);
-    setRules(SAMPLE_RULE);
-    setResult(null);
-    setError("");
-  }
+  const inferred = result?.inferred_facts ?? [];
 
   return (
     <div className="ws-page" style={{ flexDirection: "row" }}>
@@ -106,7 +125,7 @@ export function ReasoningWorkspace() {
           <div className="ws-eyebrow" style={{ marginBottom: 8 }}>{t("reason.templates")}</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {TEMPLATES.map((template) => (
-              <button key={template.labelKey} className="ws-btn ws-btn--ghost" style={{ padding: "5px 10px", fontSize: 11 }} onClick={() => loadTemplate(template)}>
+              <button key={template.labelKey} className="ws-btn ws-btn--ghost" style={{ padding: "5px 10px", fontSize: 11 }} onClick={() => loadText(t(template.textKey))}>
                 {t(template.labelKey)}
               </button>
             ))}
@@ -116,60 +135,34 @@ export function ReasoningWorkspace() {
         {/* Input area */}
         <div className="ws-scroll ws-padded" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <label className="ws-label">{t("reason.facts")}</label>
-            <div className="ws-body" style={{ marginBottom: 8 }}>{t("reason.factsHelp")}</div>
+            <label className="ws-label">{t("reason.input")}</label>
+            <div className="ws-body" style={{ marginBottom: 8 }}>{t("reason.inputHelp")}</div>
             <textarea
               className="ws-textarea"
-              value={facts}
-              onChange={(e) => setFacts(e.target.value)}
-              rows={6}
-              spellCheck={false}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={t("reason.inputPlaceholder")}
+              rows={10}
+              maxLength={8000}
             />
           </div>
 
-          <div>
-            <label className="ws-label">{t("reason.rules")}</label>
-            <div className="ws-body" style={{ marginBottom: 8 }}>{t("reason.rulesHelp")}</div>
-            <textarea
-              className="ws-textarea"
-              value={rules}
-              onChange={(e) => setRules(e.target.value)}
-              rows={5}
-              spellCheck={false}
-            />
-          </div>
-
-          {/* Apply toggle */}
-          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "10px 12px", borderRadius: "var(--ws-radius-sm)", border: "1px solid var(--ws-border)", background: applyToGraph ? "var(--ws-green-soft)" : "var(--ws-surface)" }}>
-            <div style={{ position: "relative", width: 36, height: 20, flexShrink: 0 }}>
-              <input
-                type="checkbox"
-                checked={applyToGraph}
-                onChange={(e) => setApplyToGraph(e.target.checked)}
-                style={{ opacity: 0, position: "absolute", inset: 0, cursor: "pointer", margin: 0 }}
-              />
-              <div style={{ position: "absolute", inset: 0, borderRadius: 999, background: applyToGraph ? "var(--ws-green)" : "rgba(255,255,255,0.12)", transition: "background 180ms ease" }} />
-              <div style={{ position: "absolute", top: 3, left: applyToGraph ? 19 : 3, width: 14, height: 14, borderRadius: 999, background: "#fff", transition: "left 180ms ease", boxShadow: "0 1px 4px rgba(0,0,0,0.4)" }} />
-            </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: applyToGraph ? "#6ee7b7" : "var(--ws-text-muted)" }}>{t("reason.write")}</div>
-              <div style={{ fontSize: 11, color: "var(--ws-text-dim)" }}>{t("reason.writeHelp")}</div>
-            </div>
-          </label>
+          <ToggleRow checked={useGraphFacts} onChange={setUseGraphFacts} title={t("reason.useGraph")} help={t("reason.useGraphHelp")} />
+          <ToggleRow checked={applyToGraph} onChange={setApplyToGraph} title={t("reason.write")} help={t("reason.writeHelp")} />
 
           {/* Actions */}
           <div style={{ display: "flex", gap: 8 }}>
             <button
               className="ws-btn ws-btn--primary"
               onClick={handleRun}
-              disabled={isRunning}
+              disabled={isRunning || !text.trim()}
               style={{ flex: 1, justifyContent: "center" }}
             >
               {isRunning
                 ? <><span className="ws-spin" style={{ display: "inline-block" }}><Zap size={15} /></span>{t("reason.running")}</>
                 : <><Play size={14} />{t("reason.run")}</>}
             </button>
-            <button className="ws-btn ws-btn--ghost" onClick={handleReset} title={t("reason.reset")}>
+            <button className="ws-btn ws-btn--ghost" onClick={() => loadText(t("reason.sampleOrder"))} title={t("reason.reset")}>
               <RotateCcw size={14} />
             </button>
           </div>
@@ -210,25 +203,30 @@ export function ReasoningWorkspace() {
           )}
 
           {result && !isRunning && (
-            <div className="ws-animate-in">
-              {(result.inferred_facts ?? []).length === 0 ? (
+            <div className="ws-animate-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {result.answer ? (
+                <div style={{ padding: "16px 18px", borderRadius: "var(--ws-radius)", background: "var(--ws-green-soft)", border: "1px solid rgba(76,195,138,0.28)", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div className="ws-eyebrow">{t("reason.verdict")}</div>
+                  <div style={{ color: "var(--ws-text)", fontSize: 18, fontWeight: 700 }}>{result.answer}</div>
+                  {result.reason ? (
+                    <div style={{ color: "var(--ws-text-muted)", fontSize: 13, lineHeight: 1.6 }}>
+                      <span style={{ color: "var(--ws-text)", fontWeight: 700 }}>{t("reason.why")} </span>
+                      {result.reason}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              {inferred.length === 0 && !result.answer ? (
                 <div className="ws-empty">
                   <div className="ws-empty-icon"><CheckCircle2 size={32} /></div>
                   <div className="ws-empty-title">{t("reason.complete")}</div>
                   <div className="ws-empty-body">{t("reason.none")}</div>
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {result.inferred_facts!.map((fact, i) => (
-                    <div key={`${fact}-${i}`} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", borderRadius: "var(--ws-radius-sm)", background: "var(--ws-surface)", border: "1px solid var(--ws-border)" }}>
-                      <div style={{ width: 20, height: 20, borderRadius: 6, background: "var(--ws-green-soft)", border: "1px solid rgba(76,195,138,0.28)", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>
-                        <CheckCircle2 size={11} color="var(--ws-green)" />
-                      </div>
-                      <code style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 12, color: "var(--ws-text)", lineHeight: 1.6, wordBreak: "break-all" }}>{fact}</code>
-                    </div>
-                  ))}
-                </div>
+                <StatementList title={t("reason.inferred")} icon={<CheckCircle2 size={11} />} items={inferred} accent />
               )}
+              <StatementList title={t("reason.rules")} icon={<Workflow size={11} />} items={result.rules ?? []} />
+              <StatementList title={t("reason.facts")} icon={<ListTree size={11} />} items={result.facts ?? []} />
             </div>
           )}
 

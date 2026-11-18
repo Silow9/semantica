@@ -927,6 +927,21 @@ class GraphSession:
                 self._search_index.upsert(normalized)
         return added
 
+    def delete_node(self, node_id: str) -> Optional[int]:
+        """Remove a node and every edge touching it. Returns the removed edge count, or None if missing."""
+        with self._lock:
+            if node_id not in self.graph.nodes:
+                return None
+            edge_count = sum(
+                1 for edge in self.graph.edges if edge.source_id == node_id or edge.target_id == node_id
+            )
+            removed = self.graph.purge_node(node_id, reason="deleted in explorer")
+            has_mutation_callback = callable(getattr(self.graph, "mutation_callback", None))
+            if removed and not has_mutation_callback:
+                self._bump_graph_revision_locked()
+                self._search_index.remove(node_id)
+        return edge_count if removed else None
+
     def add_edge(
         self,
         source_id: str,

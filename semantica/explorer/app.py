@@ -3,6 +3,7 @@ Semantica Explorer FastAPI application factory.
 """
 
 import asyncio
+import mimetypes
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -22,6 +23,22 @@ from .markdown_resources import MarkdownResourceRegistry
 from .runtime import explorer_capabilities, install_mutation_bridge
 from .session import GraphSession
 from .ws import ConnectionManager, install_graph_updates_websocket
+
+mimetypes.add_type("font/ttf", ".ttf")
+mimetypes.add_type("font/otf", ".otf")
+mimetypes.add_type("font/woff", ".woff")
+mimetypes.add_type("font/woff2", ".woff2")
+
+
+def _public_file(static_dir: Path, full_path: str) -> Optional[Path]:
+    """Return a file inside the built frontend tree, or None for SPA routes."""
+    if not full_path or full_path.endswith("/"):
+        return None
+    root = static_dir.resolve()
+    candidate = (root / full_path).resolve()
+    if not candidate.is_relative_to(root) or not candidate.is_file():
+        return None
+    return candidate
 
 
 def _read_int_env(name: str, default: int) -> int:
@@ -272,6 +289,9 @@ def create_app(
         async def serve_spa(full_path: str):
             if full_path.startswith("api/"):
                 raise HTTPException(status_code=404, detail="API route not found")
+            public_file = _public_file(static_dir, full_path)
+            if public_file is not None:
+                return FileResponse(public_file)
             index_path = static_dir / "index.html"
             if index_path.is_file():
                 return FileResponse(index_path)

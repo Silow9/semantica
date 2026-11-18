@@ -11,6 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import ValidationError
 
 from ..dependencies import get_session
+from ..model_settings import ModelSettingsStore
+from ..natural_reasoning import generate_facts_and_rules
 from ..schemas import (
     DedupRequest,
     DedupResponse,
@@ -20,10 +22,13 @@ from ..schemas import (
     LinkPredictionResponse,
     MergeRequest,
     MergeResponse,
+    NaturalReasoningRequest,
+    NaturalReasoningResponse,
     ReasoningRequest,
     ReasoningResponse,
 )
 from ..session import GraphSession
+from .model_settings import get_model_settings
 
 router = APIRouter(tags=["Enrichment"])
 logger = logging.getLogger(__name__)
@@ -45,6 +50,7 @@ _FACT_RE = re.compile(r"^(?P<predicate>[A-Za-z_][\w:-]*)\((?P<args>.*)\)$")
 _LINK_PREDICTION_MAX_NODES = 10_000
 _LINK_PREDICTION_MAX_EDGES = 50_000
 _link_prediction_semaphore = asyncio.Semaphore(2)
+_NATURAL_REASONING_GRAPH_FACTS = 200
 
 
 def _safe_dict(obj) -> dict:
@@ -333,11 +339,7 @@ async def detect_duplicates(
         raise HTTPException(status_code=422, detail=f"Dedup scan failed: {exc}")
 
 
-@router.post("/api/reason", response_model=ReasoningResponse)
-async def run_reasoning(
-    body: ReasoningRequest,
-    session: GraphSession = Depends(get_session),
-):
+async def _reason(body: ReasoningRequest, session: GraphSession) -> ReasoningResponse:
     inferred_facts: List[str] = []
     try:
         from ...reasoning.reasoner import Reasoner
@@ -363,6 +365,52 @@ async def run_reasoning(
         added_edges=added_edges,
         mutated=added_edges > 0,
     )
+
+
+@router.post("/api/reason", response_model=ReasoningResponse)
+async def run_reasoning(
+    body: ReasoningRequest,
+    session: GraphSession = Depends(get_session),
+):
+    return await _reason(body, session)
+
+
+def _graph_facts(session: GraphSession) -> List[str]:
+    facts = []
+    for edge in list(session.graph.edges):
+        if len(facts) >= _NATURAL_REASONING_GRAPH_FACTS:
+            break
+        source, target = str(edge.source_id), str(edge.target_id)
+        if any(char in source + target for char in ",()"):
+            continue
+        predicate = re.sub(r"\W+", "_", str(edge.edge_type or "related_to")).strip("_") or "related_to"
+        facts.append(f"{predicate}({source}, {target})")
+    return facts
+
+
+@router.post("/api/reason/natural", response_model=NaturalReasoningResponse)
+async def run_natural_reasoning(
+    body: NaturalReasoningRequest,
+    session: GraphSession = Depends(get_session),
+    models: ModelSettingsStore = Depends(get_model_settings),
+):
+    if not models.is_configured("llm"):
+        raise HTTPException(status_code=503, detail="LLM endpoint is not configured.")
+
+    graph_facts = await asyncio.to_thread(_graph_facts, session) if body.use_graph_facts else []
+    try:
+        facts, rules, answer, reason = await asyncio.to_thread(
+            generate_facts_and_rules, models.resolved("llm"), body.text, graph_facts
+        )
+    except Exception as exc:
+        logger.warning("Natural-language reasoning failed: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc)[:400]) from exc
+
+    result = await _reason(
+        ReasoningRequest(facts=[*graph_facts, *facts], rules=rules, apply_to_graph=body.apply_to_graph),
+        session,
+    )
+    return NaturalReasoningResponse(**result.model_dump(), facts=facts, rules=rules, answer=answer, reason=reason)
 
 
 @router.post("/api/enrich/merge", response_model=MergeResponse)

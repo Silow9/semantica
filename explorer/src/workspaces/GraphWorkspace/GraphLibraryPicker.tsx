@@ -291,9 +291,11 @@ const GRAPH_LIBRARY_PICKER_CSS = `
     flex-direction: column;
     gap: 8px;
     border-radius: 14px;
-    border: 1px solid ${GRAPH_THEME.ui.control.inputBorder};
-    background: ${GRAPH_THEME.ui.surface.cardStrong};
-    box-shadow: 0 18px 40px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.04);
+    border: 1px solid rgba(232, 234, 237, 0.32);
+    background: ${GRAPH_THEME.ui.surface.app};
+    box-shadow:
+      0 0 6px rgba(232, 234, 237, 0.18),
+      0 18px 40px rgba(0, 0, 0, 0.5);
     color: ${GRAPH_THEME.ui.text.body};
   }
   .explore-graph-picker-heading {
