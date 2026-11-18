@@ -1,8 +1,9 @@
-import { useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useI18n } from "../i18n";
 import type { MessageKey } from "../i18n/messages";
 import { BrainCircuit, Play, RotateCcw, CheckCircle2, AlertCircle, Zap, GitBranch, Info, ListTree, Workflow } from "lucide-react";
+import { DecisionChainHandoff } from "./DecisionChainHandoff";
 
 const TEMPLATES: { labelKey: MessageKey; textKey: MessageKey }[] = [
   { labelKey: "reason.order", textKey: "reason.sampleOrder" },
@@ -71,11 +72,25 @@ export function ReasoningWorkspace() {
   const [result, setResult] = useState<ReasoningResult | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState("");
+  const [handoff, setHandoff] = useState<"off" | "play" | "done">("off");
+  const [runId, setRunId] = useState(0);
+  const runToken = useRef(0);
+
+  const finishHandoff = useCallback((id: number, flew: boolean) => {
+    if (id !== runToken.current) return;
+    if (flew) window.dispatchEvent(new CustomEvent("semantica:decision-landed"));
+    setHandoff("done");
+  }, []);
 
   async function handleRun() {
+    const token = runToken.current + 1;
+    runToken.current = token;
+    setRunId(token);
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     setIsRunning(true);
     setError("");
     setResult(null);
+    setHandoff(reduceMotion ? "off" : "play");
     try {
       const response = await fetch("/api/reason/natural", {
         method: "POST",
@@ -83,23 +98,33 @@ export function ReasoningWorkspace() {
         body: JSON.stringify({ text: text.trim(), apply_to_graph: applyToGraph, use_graph_facts: useGraphFacts }),
       });
       const data = await response.json();
+      if (token !== runToken.current) return;
       if (response.status === 503) throw new Error(t("reason.llmMissing"));
       if (response.status === 502) throw new Error(t("reason.llmFailed", { detail: data.detail ?? "" }));
       if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : `Status ${response.status}`);
       setResult(data);
+      if (reduceMotion) setHandoff("done");
       if (data.mutated) queryClient.invalidateQueries({ queryKey: ["graph", "full-load"] });
     } catch (e) {
+      if (token !== runToken.current) return;
+      setHandoff("off");
       setError(e instanceof Error ? e.message : "Reasoning failed");
     } finally {
-      setIsRunning(false);
+      if (token === runToken.current) setIsRunning(false);
     }
   }
 
   function loadText(value: string) {
+    runToken.current += 1;
+    setRunId(runToken.current);
     setText(value);
     setResult(null);
     setError("");
+    setIsRunning(false);
+    setHandoff("off");
   }
+
+  const sequenceBusy = isRunning || handoff === "play";
 
   const inferred = result?.inferred_facts ?? [];
 
@@ -155,10 +180,10 @@ export function ReasoningWorkspace() {
             <button
               className="ws-btn ws-btn--primary"
               onClick={handleRun}
-              disabled={isRunning || !text.trim()}
+              disabled={sequenceBusy || !text.trim()}
               style={{ flex: 1, justifyContent: "center" }}
             >
-              {isRunning
+              {sequenceBusy
                 ? <><span className="ws-spin" style={{ display: "inline-block" }}><Zap size={15} /></span>{t("reason.running")}</>
                 : <><Play size={14} />{t("reason.run")}</>}
             </button>
@@ -173,7 +198,7 @@ export function ReasoningWorkspace() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ padding: "18px 24px 14px", borderBottom: "1px solid var(--ws-border)", flexShrink: 0, display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ws-text)" }}>{t("reason.results")}</div>
-          {result && !isRunning && (
+          {result && handoff === "done" && (
             <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
               <span className="ws-pill ws-pill--accent">
                 <Zap size={9} /> {t("reason.rulesFired", { count: result.rules_fired ?? 0 })}
@@ -188,6 +213,9 @@ export function ReasoningWorkspace() {
           )}
         </div>
 
+        {handoff === "play" ? (
+          <DecisionChainHandoff key={runId} runId={runId} source={result} onLanded={finishHandoff} />
+        ) : (
         <div className="ws-scroll ws-padded" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {error && (
             <div className="ws-animate-in" style={{ display: "flex", gap: 10, padding: "12px 14px", borderRadius: "var(--ws-radius-sm)", background: "var(--ws-red-soft)", border: "1px solid rgba(255,123,114,0.28)", color: "#fca5a5", fontSize: 13 }}>
@@ -202,7 +230,7 @@ export function ReasoningWorkspace() {
             </div>
           )}
 
-          {result && !isRunning && (
+          {result && handoff === "done" && (
             <div className="ws-animate-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               {result.answer ? (
                 <div style={{ padding: "16px 18px", borderRadius: "var(--ws-radius)", background: "var(--ws-green-soft)", border: "1px solid rgba(76,195,138,0.28)", display: "flex", flexDirection: "column", gap: 8 }}>
@@ -238,6 +266,7 @@ export function ReasoningWorkspace() {
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );

@@ -566,6 +566,19 @@ const shellStyles = `
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.16);
   }
 
+  .nav-button[data-receiving='true'] {
+    color: var(--text-main);
+    border-color: rgba(76, 195, 138, 0.72);
+    background: rgba(76, 195, 138, 0.14);
+    animation: nav-receive 760ms ease;
+  }
+
+  @keyframes nav-receive {
+    0% { transform: scale(0.94); box-shadow: 0 0 0 0 rgba(76, 195, 138, 0.5); }
+    46% { transform: scale(1.07); box-shadow: 0 0 0 8px rgba(76, 195, 138, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(76, 195, 138, 0); }
+  }
+
   .nav-label {
     font-size: 11px;
     font-weight: 600;
@@ -1319,6 +1332,21 @@ export default function App() {
   const [graphFocusRequest, setGraphFocusRequest] = useState<{ nodeId: string; token: number } | null>(null);
   const [exploreDraftDirty, setExploreDraftDirty] = useState(false);
   const [agentMemoryAvailable, setAgentMemoryAvailable] = useState(false);
+  const [decisionReceiving, setDecisionReceiving] = useState(false);
+
+  useEffect(() => {
+    let timer = 0;
+    const onLanded = () => {
+      setDecisionReceiving(true);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setDecisionReceiving(false), 900);
+    };
+    window.addEventListener("semantica:decision-landed", onLanded);
+    return () => {
+      window.removeEventListener("semantica:decision-landed", onLanded);
+      window.clearTimeout(timer);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -1556,7 +1584,9 @@ export default function App() {
             <button
               key={id}
               className="nav-button"
+              data-nav={id}
               data-active={activeWorkspace === id}
+              data-receiving={id === "decisions" && decisionReceiving ? "true" : undefined}
               onClick={() => switchWorkspace(id)}
               title={t(hintKey)}
             >

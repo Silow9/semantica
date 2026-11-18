@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Scale, Search, ArrowRight, Info } from "lucide-react";
 import { useI18n } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
+import { translateNodeType, translateRelationType } from "../GraphWorkspace/graphTermLabels";
 
 type OutcomeKind = "approved" | "rejected" | "deferred" | "pending" | string;
 
@@ -12,11 +14,35 @@ function outcomeColor(outcome: string) {
   return { color: "var(--ws-text-muted)", bg: "rgba(255,255,255,0.04)", border: "rgba(255,255,255,0.1)" };
 }
 
+const OUTCOME_KEYS: Record<string, MessageKey> = {
+  active: "decision.outcome.active",
+  approved: "decision.outcome.approved",
+  accepted: "decision.outcome.accepted",
+  rejected: "decision.outcome.rejected",
+  denied: "decision.outcome.denied",
+  failed: "decision.outcome.failed",
+  deferred: "decision.outcome.deferred",
+  pending: "decision.outcome.pending",
+  review: "decision.outcome.review",
+  blocked: "decision.outcome.blocked",
+  unknown: "decision.outcome.unknown",
+  recorded: "decision.outcome.recorded",
+  flagged_for_review: "decision.outcome.flaggedForReview",
+  investigation_opened: "decision.outcome.investigationOpened",
+};
+
+function normalizeToken(value: string) {
+  return value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+}
+
 function OutcomeBadge({ outcome }: { outcome: OutcomeKind }) {
+  const { t } = useI18n();
   const c = outcomeColor(outcome);
+  const key = OUTCOME_KEYS[normalizeToken(outcome || "unknown")];
+  const label = key ? t(key) : (outcome || t("decision.outcome.unknown"));
   return (
     <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: c.color, background: c.bg, border: `1px solid ${c.border}` }}>
-      {outcome || "unknown"}
+      {label}
     </span>
   );
 }
@@ -32,12 +58,14 @@ interface ChainStep {
 const NODE_ACCENTS = ["#4aa3ff","#4cc38a","#f2b66d","#c084fc","#ff7b72","#38bdf8","#a78bfa"];
 
 function ChainNode({ step, index }: { step: ChainStep; index: number }) {
+  const { locale } = useI18n();
   const accent = NODE_ACCENTS[index % NODE_ACCENTS.length];
+  const typeLabel = translateNodeType(step.type, locale);
   return (
     <div style={{ padding: "14px 16px", borderRadius: "var(--ws-radius)", background: "var(--ws-surface)", border: `1px solid ${accent}28`, borderLeft: `3px solid ${accent}`, position: "relative" }}>
       {step.type && (
         <div style={{ fontFamily: "monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: accent, marginBottom: 5 }}>
-          {step.type}
+          {typeLabel}
         </div>
       )}
       <div style={{ color: "var(--ws-text)", fontSize: 13, fontWeight: 600 }}>{step.content || step.id}</div>
@@ -49,12 +77,14 @@ function ChainNode({ step, index }: { step: ChainStep; index: number }) {
 }
 
 function RelEdge({ label }: { label: string }) {
+  const { locale } = useI18n();
+  const relationLabel = label === "→" ? label : translateRelationType(label, locale);
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0, padding: "2px 0" }}>
       <div style={{ width: 2, height: 10, background: "var(--ws-border)" }} />
       <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 999, background: "var(--ws-accent-soft)", border: "1px solid var(--ws-border-strong)", maxWidth: 260 }}>
         <ArrowRight size={10} color="var(--ws-accent)" />
-        <span style={{ fontSize: 10, fontWeight: 700, color: "var(--ws-accent)", letterSpacing: "0.06em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, color: "var(--ws-accent)", letterSpacing: "0.06em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{relationLabel}</span>
       </div>
       <div style={{ width: 2, height: 10, background: "var(--ws-border)" }} />
     </div>
@@ -108,7 +138,7 @@ export function DecisionWorkspace() {
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = await r.json();
-        if (r.status === 207) setError(data.message || "Warning: Partial success loading decisions.");
+        if (r.status === 207) setError(data.message || t("decision.partialDecisions"));
         return data;
       })
       .then((data) => {
@@ -118,7 +148,7 @@ export function DecisionWorkspace() {
       })
       .catch((e) => {
         if (e?.name !== "AbortError") {
-          setError(e instanceof Error ? e.message : "Failed to load decisions.");
+          setError(e instanceof Error ? e.message : t("decision.loadFailed"));
         }
       })
       .finally(() => {
@@ -145,7 +175,7 @@ export function DecisionWorkspace() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (res.status === 207 && !ctrl.signal.aborted) {
-        setError(data.message || "Warning: Partial success loading chain.");
+        setError(data.message || t("decision.partialChain"));
       }
       if (!ctrl.signal.aborted) setChain(data.chain || []);
     } catch (e) {
@@ -160,12 +190,17 @@ export function DecisionWorkspace() {
   const filtered = useMemo(() => {
     const q = filter.toLowerCase().trim();
     if (!q) return decisions;
-    return decisions.filter((d) =>
-      d.decision_id.toLowerCase().includes(q) ||
-      (d.category ?? "").toLowerCase().includes(q) ||
-      (d.outcome ?? "").toLowerCase().includes(q)
-    );
-  }, [decisions, filter]);
+    return decisions.filter((d) => {
+      const outcomeKey = OUTCOME_KEYS[normalizeToken(d.outcome ?? "")];
+      const outcomeLabel = outcomeKey ? t(outcomeKey) : (d.outcome ?? "");
+      return (
+        d.decision_id.toLowerCase().includes(q) ||
+        (d.category ?? "").toLowerCase().includes(q) ||
+        (d.outcome ?? "").toLowerCase().includes(q) ||
+        outcomeLabel.toLowerCase().includes(q)
+      );
+    });
+  }, [decisions, filter, t]);
 
   return (
     <div className="ws-page" style={{ flexDirection: "row" }}>
