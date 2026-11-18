@@ -19,7 +19,7 @@ import { fetchAgentMemoryAvailability } from './explorerCapabilities';
 import { hasOntologyUrlState } from './workspaces/OntologyWorkspace/ontologyUrlState';
 import { useI18n } from './i18n';
 import type { MessageKey } from './i18n/messages';
-import { LandingStarMap } from './LandingStarMap';
+import { LandingSky, LandingStarMap } from './LandingStarMap';
 
 const DecisionWorkspace = lazy(() => import('./workspaces/DecisionWorkspace/DecisionWorkspace').then((module) => ({ default: module.DecisionWorkspace })));
 const DocumentsWorkspace = lazy(() => import('./workspaces/DocumentsWorkspace/DocumentsWorkspace').then((module) => ({ default: module.DocumentsWorkspace })));
@@ -722,6 +722,25 @@ const shellStyles = `
     scrollbar-color: rgba(232,234,237,0.18) transparent;
   }
 
+  .landing-canvas {
+    position: relative;
+    min-height: 100%;
+  }
+
+  .landing-sky {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .landing-sky-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
   .landing-shell {
     position: relative;
     z-index: 1;
@@ -745,6 +764,8 @@ const shellStyles = `
     position: relative;
     width: min(1120px, 100%);
     margin: 0 auto;
+    -webkit-mask-image: radial-gradient(ellipse 86% 78% at 50% 46%, #000 62%, transparent 100%);
+    mask-image: radial-gradient(ellipse 86% 78% at 50% 46%, #000 62%, transparent 100%);
   }
 
   .landing-copy {
@@ -847,115 +868,156 @@ const shellStyles = `
   }
 
   .star-map-twinkle {
-    fill: #dbe9ff;
-    animation: star-map-twinkle 4s ease-in-out infinite;
+    animation: star-map-twinkle 7s ease-in-out infinite;
   }
 
   .star-map-station {
-    animation: star-map-drift 9s ease-in-out infinite;
+    animation: star-map-drift 16s ease-in-out infinite;
   }
 
   .star-map-deck {
     fill: none;
-    stroke: rgba(127, 208, 255, 0.16);
-    stroke-width: 1;
-    stroke-dasharray: 2 7;
-    animation: star-map-flow 6s linear infinite;
+    stroke: rgba(206, 218, 228, 0.16);
+    stroke-width: 0.6;
   }
 
   .star-map-deck--outer {
-    stroke: rgba(192, 132, 252, 0.14);
-    stroke-width: 1.4;
-    stroke-dasharray: 18 6 2 6;
-    animation-duration: 14s;
+    stroke: rgba(226, 232, 238, 0.28);
+    stroke-width: 0.75;
+  }
+
+  .star-map-deck--hair {
+    stroke: rgba(214, 196, 164, 0.22);
+    stroke-width: 0.4;
+  }
+
+  .star-map-deck--inner {
+    stroke: rgba(214, 224, 232, 0.2);
+    stroke-width: 0.7;
   }
 
   .star-map-deck--core {
-    stroke: rgba(127, 208, 255, 0.38);
-    stroke-dasharray: none;
-  }
-
-  .star-map-deck--upper {
-    stroke: rgba(158, 230, 255, 0.1);
-    stroke-dasharray: 1 6;
+    stroke: rgba(236, 242, 248, 0.34);
+    stroke-width: 0.65;
+    animation: star-map-breathe 8s ease-in-out infinite;
   }
 
   .star-map-spoke {
-    stroke: rgba(127, 208, 255, 0.07);
-    stroke-width: 1;
+    stroke: rgba(206, 218, 228, 0.09);
+    stroke-width: 0.45;
   }
 
-  .star-map-float {
-    animation: star-map-float 6s ease-in-out infinite;
+  .star-map-tick {
+    stroke: rgba(220, 228, 236, 0.22);
+    stroke-width: 0.45;
+  }
+
+  .star-map-tick--major {
+    stroke: rgba(232, 224, 206, 0.38);
+    stroke-width: 0.6;
+  }
+
+  .star-map-sector {
+    stroke: none;
+    opacity: 0.09;
+  }
+
+  .star-map-bound {
+    stroke: rgba(226, 232, 238, 0.2);
+    stroke-width: 0.55;
+  }
+
+  .star-map-arc {
+    fill: none;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-opacity: 0.7;
+  }
+
+  .star-map-spine {
+    stroke-width: 0.7;
   }
 
   .star-map-link {
     fill: none;
-    stroke-width: 1;
-    stroke-opacity: 0.32;
+    stroke-width: 0.65;
+    stroke-opacity: 0.34;
+    stroke-linecap: round;
+  }
+
+  .star-map-link--bloom {
+    stroke-width: 2.4;
+    stroke-opacity: 0.08;
   }
 
   .star-map-machine-link {
-    stroke: rgba(76, 195, 138, 0.1);
-    stroke-width: 0.6;
+    stroke: rgba(198, 220, 210, 0.55);
+    stroke-width: 0.7;
   }
 
   .star-map-machine-link--idle {
-    stroke: rgba(138, 150, 168, 0.12);
-    stroke-dasharray: 2 4;
+    stroke: rgba(210, 218, 226, 0.5);
+  }
+
+  .star-map-cluster {
+    fill: rgba(150, 186, 170, 0.05);
+    stroke: rgba(190, 214, 204, 0.08);
+    stroke-width: 0.6;
+  }
+
+  .star-map-cluster--idle {
+    fill: rgba(170, 178, 188, 0.04);
+    stroke: rgba(190, 198, 206, 0.06);
   }
 
   .star-map-flow {
     fill: none;
-    stroke: rgba(158, 230, 255, 0.55);
-    stroke-width: 1.4;
+    stroke: rgba(226, 234, 242, 0.2);
+    stroke-width: 0.7;
     stroke-linecap: round;
-    stroke-dasharray: 6 10;
-    animation: star-map-flow 2.4s linear infinite;
+  }
+
+  .star-map-comet {
+    pointer-events: none;
   }
 
   .star-map-machine {
-    fill: #6ee7b7;
-    animation: star-map-twinkle 3.2s ease-in-out infinite;
+    fill: #e7f3ee;
   }
 
   .star-map-machine--idle {
-    fill: #5d6878;
-    animation: none;
+    fill: #d5dde6;
   }
 
-  .star-map-hub {
+  .star-map-hub-glow {
     transform-box: fill-box;
     transform-origin: center;
-    animation: star-map-breathe 4.5s ease-in-out infinite;
+    animation: star-map-breathe 7s ease-in-out infinite;
   }
 
   .star-map-hub-ring {
     fill: none;
-    stroke: rgba(127, 208, 255, 0.4);
-    stroke-width: 1;
-    stroke-dasharray: 3 5;
+    stroke: rgba(232, 240, 246, 0.28);
+    stroke-width: 0.55;
   }
 
   .star-map-label {
     font-family: "Huangkai Hualu", "KaiTi", "STKaiti", cursive;
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 400;
-    letter-spacing: 0.04em;
-    stroke: rgba(8, 8, 8, 0.9);
-    stroke-width: 4px;
-    paint-order: stroke fill;
+    letter-spacing: 0.06em;
+    fill: rgba(236, 232, 224, 0.92);
   }
 
-  .star-map-label--step {
-    fill: #a9bdd2;
-    font-size: 15px;
+  .star-map-label--stage {
+    font-size: 17px;
+    letter-spacing: 0.06em;
   }
 
   .star-map-label--hub {
-    fill: #f4fbff;
-    font-size: 26px;
-    letter-spacing: 0.06em;
+    fill: #f7fbff;
+    font-size: 28px;
+    letter-spacing: 0.16em;
   }
 
   /* ── Metrics strip ─────────────────────────────────────── */
@@ -1010,27 +1072,18 @@ const shellStyles = `
 
   /* ── Animations ────────────────────────────────────────── */
   @keyframes star-map-twinkle {
-    0%, 100% { opacity: 0.25; }
-    50% { opacity: 1; }
-  }
-
-  @keyframes star-map-float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(calc(var(--float-amp, 4px) * -1)); }
+    0%, 100% { opacity: 0.28; }
+    50% { opacity: 0.92; }
   }
 
   @keyframes star-map-drift {
     0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-3px); }
-  }
-
-  @keyframes star-map-flow {
-    to { stroke-dashoffset: -32; }
+    50% { transform: translateY(-2px); }
   }
 
   @keyframes star-map-breathe {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.12); }
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
   }
 
   .workspace-loading {
@@ -1066,9 +1119,6 @@ const shellStyles = `
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .star-map-label--step {
-      display: none;
-    }
   }
 
   @media (max-width: 680px) {
@@ -1095,11 +1145,8 @@ const shellStyles = `
   @media (prefers-reduced-motion: reduce) {
     .star-map-twinkle,
     .star-map-station,
-    .star-map-deck,
-    .star-map-flow,
-    .star-map-machine,
-    .star-map-float,
-    .star-map-hub,
+    .star-map-deck--core,
+    .star-map-hub-glow,
     .landing-cta-primary,
     .landing-cta-secondary {
       animation: none;
@@ -1211,6 +1258,8 @@ function WelcomeScreen({
 
   return (
     <main className="landing-page">
+      <div className="landing-canvas">
+      <LandingSky />
       <div className="landing-shell">
 
         {/* ── Hero ── */}
@@ -1254,6 +1303,7 @@ function WelcomeScreen({
           ))}
         </div>
 
+      </div>
       </div>
     </main>
   );
