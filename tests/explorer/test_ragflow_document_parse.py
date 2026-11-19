@@ -303,3 +303,74 @@ def test_build_status_stays_visible_while_a_document_is_building(tmp_path, monke
             assert "report.txt" in busy.json()["detail"]
     finally:
         status.reset()
+
+
+def test_library_build_uses_every_parsed_file_in_that_library(tmp_path, monkeypatch):
+    pytest.importorskip("fastapi")
+    from semantica.context.context_graph import ContextGraph
+    from semantica.explorer.app import create_app
+    from semantica.explorer.build_status import get_build_status
+    from semantica.explorer.session import GraphSession
+    from starlette.testclient import TestClient
+
+    monkeypatch.setenv("SEMANTICA_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("SEMANTICA_ALLOW_ANONYMOUS", "true")
+    status = get_build_status()
+    status.reset()
+    app = create_app(session=GraphSession(ContextGraph(advanced_analytics=False)))
+    try:
+        with TestClient(app) as client:
+            libraries = client.get("/api/document-libraries").json()
+            default = next(item for item in libraries["libraries"] if item["name"] == "文档库")
+            other = client.post("/api/document-libraries", json={"name": "合同库"})
+            assert other.status_code == 200
+            other_id = other.json()["id"]
+            held = client.post(
+                "/api/documents/upload",
+                data={"library_id": other_id},
+                files=[("files", ("aside.txt", b"Grace Hopper invented COBOL.", "text/plain"))],
+            )
+            assert held.status_code == 200
+
+            client.post(f"/api/document-libraries/{default['id']}/activate")
+            uploaded = client.post(
+                "/api/documents/upload",
+                data={"library_id": default["id"]},
+                files=[
+                    ("files", ("people.txt", b"Ada Lovelace met Charles Babbage.", "text/plain")),
+                    ("files", ("city.txt", b"London is a city.", "text/plain")),
+                ],
+            )
+            assert uploaded.status_code == 200
+            assert len(client.get(f"/api/documents?library_id={default['id']}").json()["documents"]) == 2
+            assert [item["name"] for item in client.get(f"/api/documents?library_id={other_id}").json()["documents"]] == ["aside.txt"]
+
+            empty = client.post("/api/document-libraries", json={"name": "空库"})
+            refused = client.post(f"/api/document-libraries/{empty.json()['id']}/build-graph", json={"method": "pattern"})
+            assert refused.status_code == 422
+
+            built = client.post(f"/api/document-libraries/{default['id']}/build-graph", json={"method": "pattern"})
+            assert built.status_code == 200
+            body = built.json()
+            assert body["documents"] == 2
+            assert body["graph_name"] == "文档库"
+            assert body["nodes_added"] >= 2
+
+            graphs = client.get("/api/graphs").json()
+            assert graphs["active_id"] == body["graph_id"]
+            saved = next(graph for graph in graphs["graphs"] if graph["id"] == body["graph_id"])
+            assert saved["name"] == "文档库"
+            assert saved["node_count"] == body["nodes_added"]
+
+            for document in client.get(f"/api/documents?library_id={default['id']}").json()["documents"]:
+                detail = client.get(f"/api/documents/{document['id']}").json()
+                assert detail["graph"]["graph_id"] == body["graph_id"]
+            assert client.get(f"/api/documents/{held.json()['documents'][0]['id']}").json().get("graph") is None
+
+            finished = client.get("/api/documents/build-status").json()
+            assert finished["active"] is False
+            assert finished["library_name"] == "文档库"
+            assert finished["documents_total"] == 2
+            assert finished["error"] is None
+    finally:
+        status.reset()

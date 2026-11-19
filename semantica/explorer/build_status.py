@@ -54,6 +54,9 @@ class BuildStatus:
         document_name: str,
         method: str,
         graph_name: str | None = None,
+        library_id: str | None = None,
+        library_name: str | None = None,
+        documents_total: int = 1,
     ) -> bool:
         with self._lock:
             if self._job and self._job["active"]:
@@ -62,11 +65,15 @@ class BuildStatus:
                 "active": True,
                 "document_id": document_id,
                 "document_name": document_name,
+                "library_id": library_id,
+                "library_name": library_name,
                 "graph_name": graph_name,
                 "method": method,
                 "stage": "extract_entities",
                 "processed": 0,
                 "total": 0,
+                "documents_processed": 0,
+                "documents_total": documents_total,
                 "entities": 0,
                 "relationships": 0,
                 "triplets": 0,
@@ -75,6 +82,18 @@ class BuildStatus:
                 "finished_at": None,
             }
             return True
+
+    def focus_document(self, document_id: str, document_name: str, index: int) -> None:
+        with self._lock:
+            job = self._job
+            if job is None or not job["active"]:
+                return
+            job["document_id"] = document_id
+            job["document_name"] = document_name
+            job["documents_processed"] = index + 1
+            job["stage"] = "extract_entities"
+            job["processed"] = 0
+            job["total"] = 0
 
     def update(self, stage: str, **info: Any) -> None:
         with self._lock:
@@ -116,12 +135,16 @@ class BuildStatus:
                     "active": False,
                     "document_id": None,
                     "document_name": None,
+                    "library_id": None,
+                    "library_name": None,
                     "graph_name": None,
                     "method": None,
                     "stage": None,
                     "steps": [],
                     "processed": 0,
                     "total": 0,
+                    "documents_processed": 0,
+                    "documents_total": 0,
                     "entities": 0,
                     "relationships": 0,
                     "triplets": 0,

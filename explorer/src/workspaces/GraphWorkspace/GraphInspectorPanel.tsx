@@ -311,6 +311,19 @@ function PathFlowViz({
   );
 }
 
+function NodeIdField({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ color: GRAPH_THEME.ui.text.muted, fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+        {label}
+      </div>
+      <div style={{ color: GRAPH_THEME.ui.text.body, fontSize: 13, fontFamily: "monospace", lineHeight: 1.45, wordBreak: "break-all" }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
 /* ─── Main Panel ─────────────────────────────────────────────────── */
 
 export function GraphInspectorPanel({
@@ -366,7 +379,7 @@ export function GraphInspectorPanel({
           <h3 style={{ margin: 0, color: GRAPH_THEME.ui.text.strong, fontSize: 20, fontWeight: 700, wordBreak: "break-word" }}>
             {nodeId}
           </h3>
-          <div style={{ color: GRAPH_THEME.ui.text.muted, fontSize: 12, marginTop: 6, fontFamily: "monospace", wordBreak: "break-all" }}>{nodeId}</div>
+          <NodeIdField label={t("inspector.nodeId")} value={nodeId} />
         </div>
         <div style={groupedSelectionNoticeStyle}>
           <div style={{ color: GRAPH_THEME.ui.text.strong, fontWeight: 600, marginBottom: 6 }}>{t("inspector.notInspectable")}</div>
@@ -415,9 +428,10 @@ export function GraphInspectorPanel({
         <h3 style={{ margin: 0, color: GRAPH_THEME.ui.text.strong, fontSize: 20, fontWeight: 700, wordBreak: "break-word" }}>
           {String(attributes?.label ?? effectiveNodeId)}
         </h3>
-        <div style={{ color: GRAPH_THEME.ui.text.muted, fontSize: 12, marginTop: 6, fontFamily: "monospace", wordBreak: "break-all" }}>
-          {groupedDisplaySelection ? nodeId : effectiveNodeId}
-        </div>
+        <NodeIdField label={t("inspector.nodeId")} value={effectiveNodeId} />
+        {groupedDisplaySelection && nodeId !== effectiveNodeId ? (
+          <NodeIdField label={t("inspector.groupedId")} value={nodeId} />
+        ) : null}
         {groupedDisplaySelection ? (
           <div style={groupedSelectionNoticeStyle}>
             <div style={{ color: GRAPH_THEME.ui.text.strong, fontWeight: 600, marginBottom: 6 }}>{t("inspector.groupedNotice")}</div>
