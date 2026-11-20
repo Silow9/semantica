@@ -320,6 +320,14 @@ class ReasoningResponse(BaseModel):
     mutated: bool = False
 
 
+class SessionTitleRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=8000)
+
+
+class SessionTitleResponse(BaseModel):
+    title: str
+
+
 class NaturalReasoningRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=8000)
     apply_to_graph: bool = False

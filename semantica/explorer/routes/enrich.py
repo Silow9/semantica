@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from ..dependencies import get_session
 from ..model_settings import ModelSettingsStore
-from ..natural_reasoning import generate_facts_and_rules
+from ..natural_reasoning import generate_facts_and_rules, summarize_session_title
 from ..schemas import (
     DedupRequest,
     DedupResponse,
@@ -24,6 +24,8 @@ from ..schemas import (
     MergeResponse,
     NaturalReasoningRequest,
     NaturalReasoningResponse,
+    SessionTitleRequest,
+    SessionTitleResponse,
     ReasoningRequest,
     ReasoningResponse,
 )
@@ -386,6 +388,21 @@ def _graph_facts(session: GraphSession) -> List[str]:
         predicate = re.sub(r"\W+", "_", str(edge.edge_type or "related_to")).strip("_") or "related_to"
         facts.append(f"{predicate}({source}, {target})")
     return facts
+
+
+@router.post("/api/reason/title", response_model=SessionTitleResponse)
+async def summarize_reasoning_title(
+    body: SessionTitleRequest,
+    models: ModelSettingsStore = Depends(get_model_settings),
+):
+    if not models.is_configured("llm"):
+        raise HTTPException(status_code=503, detail="LLM endpoint is not configured.")
+    try:
+        title = await asyncio.to_thread(summarize_session_title, models.resolved("llm"), body.text)
+    except Exception as exc:
+        logger.warning("Session title summary failed: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc)[:400]) from exc
+    return SessionTitleResponse(title=title)
 
 
 @router.post("/api/reason/natural", response_model=NaturalReasoningResponse)

@@ -85,6 +85,34 @@ def _plain_text(value: Any) -> str:
     return " ".join(str(value or "").split())
 
 
+_TITLE_PROMPT = """Write a short session title for the user's question.
+Use the same language as the question.
+Return only the title, at most 16 Chinese characters or 8 English words.
+Do not add quotes or a trailing period."""
+
+
+def clean_session_title(reply: str) -> str:
+    cleaned = re.sub(r"<think>.*?</think>", "", reply, flags=re.DOTALL | re.IGNORECASE)
+    lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
+    title = (lines[0] if lines else "").strip("\"'“”‘’").rstrip("。.!！")
+    return " ".join(title.split())[:24]
+
+
+def summarize_session_title(settings: dict[str, str], text: str) -> str:
+    reply = chat(
+        settings,
+        text.strip()[:2000],
+        max_tokens=64,
+        system=_TITLE_PROMPT,
+        extra={"temperature": 0, "chat_template_kwargs": {"enable_thinking": False}},
+        timeout=30,
+    )
+    title = clean_session_title(reply)
+    if not title:
+        raise NaturalReasoningError("LLM returned an empty session title.")
+    return title
+
+
 def generate_facts_and_rules(
     settings: dict[str, str],
     text: str,

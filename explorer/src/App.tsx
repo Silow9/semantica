@@ -888,6 +888,13 @@ const shellStyles = `
     animation: star-map-drift 16s ease-in-out infinite;
   }
 
+  .star-map-float {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: star-map-float var(--star-float-duration, 6.2s) ease-in-out infinite;
+    animation-delay: var(--star-float-delay, 0s);
+  }
+
   .star-map-deck {
     fill: none;
     stroke: rgba(206, 218, 228, 0.16);
@@ -1094,6 +1101,11 @@ const shellStyles = `
     50% { transform: translateY(-2px); }
   }
 
+  @keyframes star-map-float {
+    0%, 100% { transform: translateY(var(--star-float, 3px)); }
+    50% { transform: translateY(calc(var(--star-float, 3px) * -1)); }
+  }
+
   @keyframes star-map-breathe {
     0%, 100% { opacity: 0.45; }
     50% { opacity: 1; }
@@ -1158,6 +1170,7 @@ const shellStyles = `
   @media (prefers-reduced-motion: reduce) {
     .star-map-twinkle,
     .star-map-station,
+    .star-map-float,
     .star-map-deck--core,
     .star-map-hub-glow,
     .landing-cta-primary,

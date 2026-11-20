@@ -398,15 +398,26 @@ function StarBody({
   color,
   radius,
   spiked = false,
+  motion = 0,
 }: {
   point: Point;
   color: string;
   radius: number;
   spiked?: boolean;
+  motion?: number;
 }) {
   const size = radius * depthScale(point);
+  const float = 2.2 + (motion % 5) * 0.45;
   return (
-    <g opacity={depthFade(point)}>
+    <g
+      className="star-map-float"
+      opacity={depthFade(point)}
+      style={{
+        '--star-float': `${float.toFixed(2)}px`,
+        '--star-float-delay': `${(-(motion * 0.73) % 8).toFixed(2)}s`,
+        '--star-float-duration': `${(5.4 + (motion % 7) * 0.55).toFixed(2)}s`,
+      } as CSSProperties}
+    >
       <circle cx={point.x} cy={point.y} r={size * 4.2} fill={color} opacity={0.07} />
       <circle cx={point.x} cy={point.y} r={size * 1.85} fill={color} opacity={0.22} />
       {spiked ? (
@@ -611,15 +622,15 @@ export function LandingStarMap() {
         ))}
       </g>
 
-      {STAGE_NODES.map((node) => (
-        <StarBody key={node.key} point={node} color={node.color} radius={node.r} spiked />
+      {STAGE_NODES.map((node, index) => (
+        <StarBody key={node.key} point={node} color={node.color} radius={node.r} spiked motion={index + 1} />
       ))}
 
-      {FIELD_NODES.map((node) => (
-        <StarBody key={node.key} point={node} color={node.color} radius={node.r} />
+      {FIELD_NODES.map((node, index) => (
+        <StarBody key={node.key} point={node} color={node.color} radius={node.r} motion={index + 11} />
       ))}
 
-      <StarBody point={DECISION} color={DECISION.color} radius={DECISION.r} spiked />
+      <StarBody point={DECISION} color={DECISION.color} radius={DECISION.r} spiked motion={17} />
 
       <g className="star-map-hub">
         <circle cx={HUB.x} cy={HUB.y} r={36} fill="url(#star-map-hub)" className="star-map-hub-glow" />
